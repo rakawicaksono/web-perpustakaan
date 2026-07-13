@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Library SMAN 15 Kota Tangerang</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800;900&family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <link rel="stylesheet" href="index.css">
+  <script>
+    // Terapkan tema lebih awal agar tidak ada kedipan warna saat halaman dimuat
+    (function() {
+      try {
+        var saved = localStorage.getItem('libraryTheme');
+        var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        var theme = saved || (prefersDark ? 'dark' : 'light');
+        if (theme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+      } catch (e) {}
+    })();
+  </script>
+</head>
+
+<body>
+
+<header id="main-header">
+  <div class="nav-inner">
+    <div class="logo-wrap" id="logo-wrap">
+      <div class="logo-icon hidden" id="logo-icon-default"><i class="fa-solid fa-book-open"></i></div>
+      <img id="logo-img-custom" src="asset/logo sman 15.jpeg" alt="Logo" class="logo-img-custom" onerror="this.classList.add('hidden'); document.getElementById('logo-icon-default').classList.remove('hidden');">
+      <div>
+        <div class="logo-title">Library</div>
+        <div class="logo-sub">SMAN 15 Kota Tangerang</div>
+      </div>
+      <label id="logo-upload-btn" class="hidden" title="Ganti Logo" style="cursor:pointer; margin-left:6px; font-size:13px; color:var(--primary); display:flex; align-items:center;">
+        <i class="fa-solid fa-camera"></i>
+        <input type="file" id="logo-file-input" accept="image/*" style="display:none;">
+      </label>
+    </div>
+    <nav id="main-nav">
+      <a href="#beranda" class="nav-link active">Beranda</a>
+      <a href="#katalog" class="nav-link">Katalog</a>
+      <a href="#" class="nav-link hidden" id="nav-dashboard">Dashboard</a>
+      <a href="#" class="nav-link hidden" id="nav-laporan">Laporan</a>
+      <a href="#kontak" class="nav-link">Kontak</a>
+    </nav>
+    <div class="nav-right">
+      <button class="btn-theme-toggle" id="btn-theme-toggle" title="Toggle Dark/Light Mode">
+        <i class="fa-solid fa-moon" id="theme-icon"></i>
+      </button>
+      <div class="user-chip hidden" id="user-chip">
+        <div class="user-avatar" id="user-avatar-nav">A</div>
+        <span id="user-name-nav">User</span>
+        <span class="role-badge" id="role-badge-nav">Admin</span>
+      </div>
+      <button class="btn-nav-login" id="btn-login-nav"><i class="fa-solid fa-right-to-bracket"></i> Login</button>
+    </div>
+    <button class="hamburger" id="hamburger"><i class="fa-solid fa-bars"></i></button>
+  </div>
+</header>
+
+<section id="beranda" class="hero-section">
+  <div class="hero-bg-grid"></div>
+  <div class="hero-blob blob-1"></div>
+  <div class="hero-blob blob-2"></div>
+  <div class="hero-content">
+    <div class="hero-badge"><i class="fa-solid fa-bookmark"></i> Sistem Perpustakaan Digital</div>
+    <h1 class="hero-title">Temukan Ilmu,<br><span class="hero-accent">Tanpa Batas</span></h1>
+    <p class="hero-desc">Portal perpustakaan SMAN 15 Kota Tangerang dengan teknologi QR Code. Pinjam buku, pantau koleksi, dan kelola perpustakaan dalam satu platform yang mudah digunakan.</p>
+    <div class="hero-actions">
+      <a href="#katalog" class="btn-primary"><i class="fa-solid fa-magnifying-glass"></i> Jelajahi Katalog</a>
+      <button class="btn-ghost" id="hero-login-btn"><i class="fa-solid fa-user"></i> Masuk Sekarang</button>
+    </div>
+    <div class="hero-stats">
+      <div class="stat-item"><span class="stat-num" id="stat-books">0</span><span class="stat-label">Koleksi Buku</span></div>
+      <div class="stat-divider"></div>
+      <div class="stat-item"><span class="stat-num" id="stat-members">0</span><span class="stat-label">Anggota</span></div>
+      <div class="stat-divider"></div>
+      <div class="stat-item"><span class="stat-num" id="stat-borrows">0</span><span class="stat-label">Transaksi</span></div>
+    </div>
+  </div>
+  <div class="hero-visual">
+    <div class="book-stack">
+      <div class="book-3d b1"><i class="fa-solid fa-flask"></i><span>Sains</span></div>
+      <div class="book-3d b2"><i class="fa-solid fa-code"></i><span>Teknologi</span></div>
+      <div class="book-3d b3"><i class="fa-solid fa-feather-pointed"></i><span>Sastra</span></div>
+      <div class="book-3d b4"><i class="fa-solid fa-globe"></i><span>Sosial</span></div>
+      <div class="floating-qr"><i class="fa-solid fa-qrcode"></i></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== FITUR PERPUSTAKAAN ===== -->
+<section id="fitur" class="fitur-section">
+  <div class="container">
+    <div class="section-header">
+      <h2>Layanan <span class="gradient-text">Perpustakaan</span></h2>
+      <p>Berbagai fasilitas dan layanan modern untuk mendukung kegiatan belajar siswa</p>
+    </div>
+    <div class="fitur-grid">
+      <div class="fitur-card">
+        <div class="fitur-icon fi-blue"><i class="fa-solid fa-qrcode"></i></div>
+        <h3>Pinjam via QR</h3>
+        <p>Sistem peminjaman cepat menggunakan QR Code — tanpa antri panjang.</p>
+      </div>
+      <div class="fitur-card">
+        <div class="fitur-icon fi-green"><i class="fa-solid fa-magnifying-glass"></i></div>
+        <h3>Katalog Digital</h3>
+        <p>Cari dan temukan ribuan buku koleksi perpustakaan kapan saja dan di mana saja.</p>
+      </div>
+      <div class="fitur-card">
+        <div class="fitur-icon fi-amber"><i class="fa-solid fa-chart-line"></i></div>
+        <h3>Laporan Real-time</h3>
+        <p>Admin dapat memantau statistik peminjaman dan pengembalian secara langsung.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== ATURAN PEMINJAMAN ===== -->
+<section id="info-perpustakaan" class="info-section">
+  <div class="container">
+    <div class="info-grid info-grid-single">
+      <!-- Aturan Peminjaman -->
+      <div class="info-card aturan-card">
+        <div class="info-card-header">
+          <div class="info-card-icon ic-green"><i class="fa-solid fa-book-open-reader"></i></div>
+          <h3>Aturan Peminjaman</h3>
+        </div>
+        <ul class="aturan-list">
+          <li><i class="fa-solid fa-check"></i> Maksimal <strong>3 buku</strong> per anggota</li>
+          <li><i class="fa-solid fa-check"></i> Durasi pinjam <strong>7 hari</strong> per buku</li>
+          <li><i class="fa-solid fa-check"></i> Denda <strong>Rp 50.000/hari</strong> untuk keterlambatan</li>
+          <li><i class="fa-solid fa-check"></i> Buku rusak/hilang wajib diganti</li>
+          <li><i class="fa-solid fa-check"></i> Kartu anggota wajib dibawa saat meminjam</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- WELCOME BANNER (shown after login) -->
+<section id="welcome-banner" class="welcome-banner hidden">
+  <div class="wb-bg-shapes">
+    <div class="wb-shape s1"></div>
+    <div class="wb-shape s2"></div>
+    <div class="wb-shape s3"></div>
+  </div>
+  <div class="wb-inner">
+    <div class="wb-left">
+      <div class="wb-greeting-row">
+        <div class="wb-avatar-lg" id="wb-avatar">A</div>
+        <div>
+          <div class="wb-greeting" id="wb-greeting">Selamat datang kembali,</div>
+          <div class="wb-username" id="wb-username">User</div>
+          <div class="wb-role-tag" id="wb-role-tag">Siswa</div>
+        </div>
+      </div>
+      <p class="wb-quote" id="wb-quote">"Membaca adalah jendela dunia — setiap buku membawa petualangan baru."</p>
+      <div class="wb-actions" id="wb-quick-actions">
+        <a href="#katalog" class="wb-btn wb-btn-primary"><i class="fa-solid fa-magnifying-glass"></i> Jelajahi Katalog</a>
+        <a href="#dashboard" class="wb-btn wb-btn-ghost" id="wb-dashboard-btn"><i class="fa-solid fa-chart-simple"></i> Lihat Dashboard</a>
+      </div>
+    </div>
+    <div class="wb-right">
+      <div class="wb-stats-row" id="wb-stats-row">
+        <div class="wb-stat-pill wsp-blue">
+          <i class="fa-solid fa-books"></i>
+          <div><span class="wsp-num" id="wb-stat-books">0</span><span class="wsp-label">Koleksi</span></div>
+        </div>
+        <div class="wb-stat-pill wsp-green">
+          <i class="fa-solid fa-users"></i>
+          <div><span class="wsp-num" id="wb-stat-members">0</span><span class="wsp-label">Anggota</span></div>
+        </div>
+        <div class="wb-stat-pill wsp-amber">
+          <i class="fa-solid fa-arrow-right-arrow-left"></i>
+          <div><span class="wsp-num" id="wb-stat-borrows">0</span><span class="wsp-label">Transaksi</span></div>
+        </div>
+      </div>
+      <div class="wb-today">
+        <div class="wb-today-header"><i class="fa-solid fa-calendar-day"></i> Hari Ini</div>
+        <div class="wb-today-date" id="wb-today-date">—</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- DASHBOARD -->
+<section id="dashboard" class="page-section hidden">
+  <div class="container">
+    <div class="section-header">
+      <h2>Dashboard <span class="gradient-text" id="nama-siswa">User</span></h2>
+      <p id="dashboard-subtitle">Selamat datang di panel perpustakaan</p>
+    </div>
+ 
+    <!-- ADMIN STATS -->
+    <div class="admin-stats-grid hidden" id="admin-stats">
+      <div class="stat-card sc-blue">
+        <div class="sc-icon"><i class="fa-solid fa-books"></i></div>
+        <div class="sc-info"><div class="sc-num" id="sc-total-books">0</div><div class="sc-label">Total Buku</div></div>
+      </div>
+      <div class="stat-card sc-green">
+        <div class="sc-icon"><i class="fa-solid fa-users"></i></div>
+        <div class="sc-info"><div class="sc-num" id="sc-total-members">0</div><div class="sc-label">Total Anggota</div></div>
+      </div>
+      <div class="stat-card sc-yellow">
+        <div class="sc-icon"><i class="fa-solid fa-clock-rotate-left"></i></div>
+        <div class="sc-info"><div class="sc-num" id="sc-active-borrows">0</div><div class="sc-label">Buku Dipinjam</div></div>
+      </div>
+      <div class="stat-card sc-red">
+        <div class="sc-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+        <div class="sc-info"><div class="sc-num" id="sc-low-stock">0</div><div class="sc-label">Stok Kritis</div></div>
+      </div>
+    </div>
+ 
+    <!-- ADMIN PANEL TABS -->
+    <div class="dashboard-tabs hidden" id="admin-tabs">
+      <button class="tab-btn active" onclick="switchTab('peminjaman', this)"><i class="fa-solid fa-list-check"></i> Peminjaman Aktif</button>
+      <button class="tab-btn" onclick="switchTab('tambah-buku', this)"><i class="fa-solid fa-plus"></i> Tambah Buku</button>
+      <button class="tab-btn" onclick="switchTab('manajemen-user', this)"><i class="fa-solid fa-users-gear"></i> Manajemen User</button>
+      <button class="btn-scan-qr" id="btn-scan-qr"><i class="fa-solid fa-qrcode"></i> Scan QR</button>
+    </div>
+
+    <!-- NON-ADMIN (Siswa/Guru) TABS -->
+    <div class="dashboard-tabs hidden" id="student-tabs">
+      <button class="tab-btn active" onclick="switchTab('tambah-buku', this)"><i class="fa-solid fa-books"></i> Katalog</button>
+    </div>
+ 
+    <!-- TAB: PEMINJAMAN AKTIF -->
+    <div class="tab-panel active" id="tab-peminjaman">
+      <div class="panel-header">
+        <h3>📋 Data Peminjaman Aktif</h3>
+        <p>Kelola buku yang sedang dipinjam oleh siswa dan guru.</p>
+      </div>
+      <div class="borrow-list" id="daftar-semua-pinjaman"></div>
+    </div>
+ 
+    <!-- TAB: TAMBAH BUKU -->
+    <div class="tab-panel hidden" id="tab-tambah-buku">
+      <div class="form-card">
+        <h3><i class="fa-solid fa-book-medical"></i> Tambah Buku Baru</h3>
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label>Judul Buku *</label>
+            <input type="text" id="input-judul-buku" placeholder="Masukkan judul buku" class="form-input">
+          </div>
+          <div class="form-group">
+            <label>Pengarang *</label>
+            <input type="text" id="input-pengarang-buku" placeholder="Nama pengarang" class="form-input">
+          </div>
+          <div class="form-group">
+            <label>Kategori *</label>
+            <select id="input-kategori-buku" class="form-input">
+              <option value="">Pilih Kategori</option>
+              <option value="Referensi Akademik">Referensi Akademik</option>
+              <option value="Teknologi">Teknologi</option>
+              <option value="Fiksi">Fiksi</option>
+              <option value="Non Fiksi">Non Fiksi</option>
+              <option value="Ilmu Sosial">Ilmu Sosial</option>
+              <option value="Sains">Sains</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Jumlah Stok *</label>
+            <input type="number" id="input-stok-buku" placeholder="0" class="form-input" min="1">
+          </div>
+          <div class="form-group">
+            <label>Penerbit</label>
+            <input type="text" id="input-penerbit-buku" placeholder="Nama penerbit" class="form-input">
+          </div>
+          <div class="form-group">
+            <label>Tahun Terbit</label>
+            <input type="number" id="input-tahun-buku" placeholder="Contoh: 2023" class="form-input" min="1900" max="2099">
+          </div>
+          <div class="form-group" style="grid-column: 1/-1;">
+            <label>ISBN / ISSN</label>
+            <input type="text" id="input-isbn-buku" placeholder="Contoh: 978-602-xxx-xxx" class="form-input">
+          </div>
+          <div class="form-group" style="grid-column: 1/-1;">
+            <label>Cover Buku (Opsional)</label>
+            <div class="cover-input-group">
+              <div class="cover-tabs">
+                <button type="button" class="cover-tab active" onclick="switchCoverTab('url-tambah', this)"><i class="fa-solid fa-link"></i> URL</button>
+                <button type="button" class="cover-tab" onclick="switchCoverTab('upload-tambah', this)"><i class="fa-solid fa-upload"></i> Upload File</button>
+              </div>
+              <div id="url-tambah" class="cover-tab-panel">
+                <input type="text" id="input-cover-buku" placeholder="Paste URL langsung atau link Google Images..." class="form-input">
+                <p class="cover-hint"><i class="fa-solid fa-lightbulb"></i> Bisa paste link dari Google Images (otomatis diekstrak), atau klik kanan gambar → "Salin alamat gambar"</p>
+              </div>
+              <div id="upload-tambah" class="cover-tab-panel hidden">
+                <label class="file-upload-zone" id="upload-zone-tambah">
+                  <input type="file" id="input-cover-file-tambah" accept="image/*" style="display:none;">
+                  <div class="upload-zone-inner">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                    <span>Klik atau drag & drop gambar di sini</span>
+                    <small>JPG, PNG, WEBP (maks 2MB)</small>
+                  </div>
+                  <img id="preview-tambah" class="upload-preview hidden" alt="Preview">
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+        <button id="btn-tambah-buku" class="btn-primary" style="margin-top:16px; width:100%;"><i class="fa-solid fa-plus"></i> Tambah ke Katalog</button>
+      </div>
+    </div>
+ 
+    <!-- TAB: MANAJEMEN USER -->
+    <div class="tab-panel hidden" id="tab-manajemen-user">
+      <div class="panel-header">
+        <h3>👥 Daftar Anggota Perpustakaan</h3>
+        <p>Pantau semua anggota yang terdaftar di sistem.</p>
+      </div>
+      <div id="user-list-container"></div>
+    </div>
+ 
+    <!-- STUDENT/GURU DASHBOARD — QR kartu anggota dihapus -->
+    <div id="student-dashboard" class="hidden">
+      <!-- STUDENT STATS -->
+      <div class="student-stats-grid" id="student-stats">
+        <div class="stat-card sc-blue">
+          <div class="sc-icon"><i class="fa-solid fa-book-open"></i></div>
+          <div class="sc-info"><div class="sc-num" id="ss-active-borrows">0</div><div class="sc-label">Sedang Dipinjam</div></div>
+        </div>
+        <div class="stat-card sc-green">
+          <div class="sc-icon"><i class="fa-solid fa-clock-rotate-left"></i></div>
+          <div class="sc-info"><div class="sc-num" id="ss-total-borrowed">0</div><div class="sc-label">Pernah Dipinjam</div></div>
+        </div>
+        <div class="stat-card sc-yellow">
+          <div class="sc-icon"><i class="fa-solid fa-rotate-left"></i></div>
+          <div class="sc-info"><div class="sc-num" id="ss-total-returned">0</div><div class="sc-label">Total Dikembalikan</div></div>
+        </div>
+      </div>
+      <div class="my-books-section">
+        <h3 class="section-mini-title">📚 Buku Yang Sedang Dipinjam</h3>
+        <div class="borrow-list" id="daftar-pinjaman"></div>
+      </div>
+    </div>
+  </div>
+</section>
+ 
+<!-- LAPORAN -->
+<section id="laporan" class="page-section hidden">
+  <div class="container">
+    <div class="section-header">
+      <h2>Laporan <span class="gradient-text">Aktivitas</span></h2>
+      <p>Riwayat lengkap transaksi peminjaman dan pengembalian buku perpustakaan</p>
+    </div>
+
+    <!-- SUMMARY CARDS -->
+    <div id="laporan-summary" class="laporan-summary-grid"></div>
+
+    <!-- TOOLBAR -->
+    <div class="report-toolbar-card">
+      <div class="report-toolbar-top">
+        <div class="search-wrap-laporan">
+          <i class="fa-solid fa-magnifying-glass" style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--gray-400);font-size:14px;"></i>
+          <input type="text" id="laporan-search" class="form-input laporan-search-input" placeholder="Cari nama anggota atau judul buku...">
+        </div>
+        <button class="btn-export" id="btn-export-excel"><i class="fa-solid fa-file-excel"></i> Export Excel</button>
+      </div>
+      <div class="report-toolbar-bottom">
+        <div class="date-filter-group">
+          <div class="filter-label"><i class="fa-solid fa-filter"></i> Filter:</div>
+          <input type="date" id="filter-tanggal" class="form-input filter-select" title="Filter berdasarkan tanggal spesifik">
+          <button class="btn-reset-filter" id="btn-reset-filter"><i class="fa-solid fa-rotate-left"></i> Reset Filter</button>
+        </div>
+        <div class="result-count-wrap">
+          <span class="result-count-badge" id="laporan-result-count">0 transaksi</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table class="data-table" id="history-table">
+        <thead>
+          <tr>
+            <th><i class="fa-solid fa-clock" style="margin-right:6px;opacity:0.7;"></i>Waktu</th>
+            <th><i class="fa-solid fa-user" style="margin-right:6px;opacity:0.7;"></i>Nama</th>
+            <th>NIS/NUPTK</th>
+            <th>Role</th>
+            <th><i class="fa-solid fa-book" style="margin-right:6px;opacity:0.7;"></i>Judul Buku</th>
+            <th>Aktivitas</th>
+          </tr>
+        </thead>
+        <tbody id="table-history-body"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+ 
+<!-- KATALOG -->
+<section id="katalog" class="page-section">
+  <div class="container">
+    <div class="section-header">
+      <h2>Katalog <span class="gradient-text">Buku</span></h2>
+      <p>Temukan buku favoritmu dari ribuan koleksi perpustakaan kami</p>
+    </div>
+    <div class="katalog-controls">
+      <div class="search-wrap">
+        <i class="fa-solid fa-magnifying-glass search-ic"></i>
+        <input type="text" id="search-input" class="search-input" placeholder="Cari judul, pengarang, atau kategori...">
+        <button class="clear-btn hidden" id="clear-search"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="filter-chips">
+        <button class="chip active" onclick="filterKategori('semua',this)">Semua</button>
+        <button class="chip" onclick="filterKategori('Referensi Akademik',this)">Akademik</button>
+        <button class="chip" onclick="filterKategori('Teknologi',this)">Teknologi</button>
+        <button class="chip" onclick="filterKategori('Fiksi',this)">Fiksi</button>
+        <button class="chip" onclick="filterKategori('Non Fiksi',this)">Non Fiksi</button>
+        <button class="chip" onclick="filterKategori('Ilmu Sosial',this)">Sosial</button>
+        <button class="chip" onclick="filterKategori('Sains',this)">Sains</button>
+      </div>
+    </div>
+    <div class="books-grid" id="katalog-container"></div>
+    <div class="pagination" id="pagination-controls"></div>
+  </div>
+</section>
+ 
+<!-- FOOTER -->
+<footer id="kontak" class="site-footer">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <div class="footer-logo">
+        <div class="footer-logo-container">
+          <div class="logo-icon hidden" id="footer-logo-icon-default"><i class="fa-solid fa-book-open"></i></div>
+          <img id="footer-logo-img-custom" src="asset/logo sman 15.jpeg" alt="Logo" class="logo-img-custom" onerror="this.classList.add('hidden'); document.getElementById('footer-logo-icon-default').classList.remove('hidden');">
+        </div>
+        <span class="logo-text">Library</span>
+      </div>
+      <p>Portal perpustakaan digital SMAN 15 Kota Tangerang — memberikan akses pengetahuan yang mudah dan modern.</p>
+      <div class="social-row">
+        <a href="#"><i class="fa-brands fa-x"></i></a>
+        <a href="#"><i class="fa-brands fa-instagram"></i></a>
+        <a href="#"><i class="fa-brands fa-youtube"></i></a>
+        <a href="#"><i class="fa-brands fa-facebook-f"></i></a>
+      </div>
+    </div>
+    <div class="footer-col">
+      <h4>Kontak</h4>
+      <p>Jl. Raya Villa Tangerang Indah, RT.001/RW.011, Periuk, Kota Tangerang</p>
+      <p style="margin-top:8px;">sman15tangerang@gmail.com</p>
+      <p>(021) 5513466</p>
+    </div>
+    <div class="footer-col">
+      <h4>Menu Cepat</h4>
+      <ul>
+        <li><a href="#beranda">Beranda</a></li>
+        <li><a href="#katalog">Katalog Buku</a></li>
+        <li><a href="#kontak">Hubungi Kami</a></li>
+      </ul>
+    </div>
+    <div class="footer-bottom-full">
+      <p>© 2026 SMAN 15 Kota Tangerang · Library v2.0 · All rights reserved.</p>
+    </div>
+  </div>
+</footer>
+ 
+<!-- ===== MODALS ===== -->
+ 
+<!-- LOGIN MODAL -->
+<div id="login-modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <button class="modal-close" id="close-login-modal"><i class="fa-solid fa-xmark"></i></button>
+    <div class="modal-icon-header login-icon"><i class="fa-solid fa-right-to-bracket"></i></div>
+    <h2 class="modal-title">Login Portal</h2>
+    <p class="modal-subtitle">Masuk sesuai peranmu di perpustakaan</p>
+ 
+    <div class="role-selector">
+      <button class="role-btn active" data-role="siswa_guru" onclick="selectRole('siswa_guru',this)"><i class="fa-solid fa-user-graduate"></i> Siswa &amp; Guru</button>
+      <button class="role-btn" data-role="admin" onclick="selectRole('admin',this)"><i class="fa-solid fa-shield-halved"></i> Admin</button>
+    </div>
+ 
+    <div class="form-group" id="login-id-group">
+      <label id="login-id-label">Nomor Induk (NIS/NUPTK)</label>
+      <div class="input-wrap"><i class="fa-solid fa-id-card input-icon"></i><input type="text" id="input-nis" placeholder="Masukkan NIS (Siswa) atau NUPTK (Guru)" class="form-input"></div>
+    </div>
+
+    <!-- Password hanya muncul untuk Admin -->
+    <div class="form-group" id="login-password-group" style="display:none;">
+      <label>Password Admin</label>
+      <div class="input-wrap"><i class="fa-solid fa-lock input-icon"></i><input type="password" id="input-password" placeholder="Masukkan password" class="form-input"><button class="toggle-pw" onclick="togglePw('input-password')"><i class="fa-solid fa-eye"></i></button></div>
+    </div>
+ 
+    <button id="btn-submit-login" class="btn-primary" style="width:100%;"><i class="fa-solid fa-right-to-bracket"></i> Masuk</button>
+    <div class="modal-links">
+      <span onclick="showRegister()">Belum punya akun? Daftar Disini</span>
+      <span onclick="showForgot()" style="margin-left:12px;">Lupa Password?</span>
+    </div>
+  </div>
+</div>
+ 
+<!-- FORGOT PASSWORD MODAL -->
+<div id="forgot-modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <button class="modal-close" id="close-forgot-modal"><i class="fa-solid fa-xmark"></i></button>
+    <div class="modal-icon-header login-icon"><i class="fa-solid fa-key"></i></div>
+    <h2 class="modal-title">Reset Password</h2>
+    <p class="modal-subtitle">Masukkan data akun admin untuk reset password</p>
+    <div class="form-group">
+      <label>Username Admin</label>
+      <div class="input-wrap"><i class="fa-solid fa-id-card input-icon"></i><input type="text" id="forgot-nis" placeholder="Username admin" class="form-input"></div>
+    </div>
+    <div class="form-group">
+      <label>Nama Lengkap</label>
+      <div class="input-wrap"><i class="fa-solid fa-user input-icon"></i><input type="text" id="forgot-nama" placeholder="Nama lengkap" class="form-input"></div>
+    </div>
+    <div class="form-group">
+      <label>Password Baru</label>
+      <div class="input-wrap"><i class="fa-solid fa-lock input-icon"></i><input type="password" id="forgot-password" placeholder="Password baru (min. 6 karakter)" class="form-input"></div>
+    </div>
+    <button id="btn-submit-forgot" class="btn-primary" style="width:100%;"><i class="fa-solid fa-key"></i> Reset Password</button>
+    <div class="modal-links"><span onclick="showLogin()">Kembali ke Login</span></div>
+  </div>
+</div>
+
+<!-- REGISTER MODAL -->
+<div id="register-modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <button class="modal-close" id="close-register-modal"><i class="fa-solid fa-xmark"></i></button>
+    <div class="modal-icon-header register-icon"><i class="fa-solid fa-user-plus"></i></div>
+    <h2 class="modal-title">Daftar Akun</h2>
+    <p class="modal-subtitle">Buat akun anggota baru perpustakaan</p>
+ 
+    <div class="role-selector">
+      <button class="role-btn active" data-role="siswa" onclick="selectRegRole('siswa',this)"><i class="fa-solid fa-user-graduate"></i> Siswa</button>
+      <button class="role-btn" data-role="guru" onclick="selectRegRole('guru',this)"><i class="fa-solid fa-chalkboard-user"></i> Guru</button>
+    </div>
+ 
+    <div class="form-group">
+      <label id="reg-id-label">Nomor Induk Siswa (NIS)</label>
+      <div class="input-wrap"><i class="fa-solid fa-id-card input-icon"></i><input type="text" id="reg-nis" placeholder="NIS / NUPTK" class="form-input"></div>
+    </div>
+    <div class="form-group">
+      <label>Nama Lengkap</label>
+      <div class="input-wrap"><i class="fa-solid fa-user input-icon"></i><input type="text" id="reg-nama" placeholder="Nama lengkap" class="form-input"></div>
+    </div>
+    <!-- Field password dihapus untuk siswa/guru -->
+    <button id="btn-submit-register" class="btn-primary" style="width:100%;"><i class="fa-solid fa-user-plus"></i> Daftar Sekarang</button>
+    <div class="modal-links"><span onclick="showLogin()">Sudah punya akun? Login</span></div>
+  </div>
+</div>
+ 
+<!-- EDIT BUKU MODAL -->
+<div id="edit-modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <button class="modal-close" id="close-edit-modal"><i class="fa-solid fa-xmark"></i></button>
+    <h2 class="modal-title" style="margin-bottom:20px;"><i class="fa-solid fa-pen-to-square"></i> Edit Buku</h2>
+    <div class="form-group"><label>Judul Buku</label><input type="text" id="edit-judul" class="form-input"></div>
+    <div class="form-group"><label>Pengarang</label><input type="text" id="edit-pengarang" class="form-input"></div>
+    <div class="form-group"><label>Kategori</label>
+      <select id="edit-kategori" class="form-input">
+        <option value="Referensi Akademik">Referensi Akademik</option>
+        <option value="Teknologi">Teknologi</option>
+        <option value="Fiksi">Fiksi</option>
+        <option value="Non Fiksi">Non Fiksi</option>
+        <option value="Ilmu Sosial">Ilmu Sosial</option>
+        <option value="Sains">Sains</option>
+      </select>
+    </div>
+    <div class="form-group"><label>Jumlah Stok</label><input type="number" id="edit-stok" class="form-input" min="0"></div>
+    <div class="form-group"><label>Penerbit</label><input type="text" id="edit-penerbit" class="form-input" placeholder="Nama penerbit"></div>
+    <div class="form-group"><label>Tahun Terbit</label><input type="number" id="edit-tahun" class="form-input" placeholder="Contoh: 2023" min="1900" max="2099"></div>
+    <div class="form-group"><label>ISBN / ISSN</label><input type="text" id="edit-isbn" class="form-input" placeholder="Contoh: 978-602-xxx-xxx"></div>
+    <div class="form-group">
+      <label>Cover Buku</label>
+      <div class="cover-input-group">
+        <div class="cover-tabs">
+          <button type="button" class="cover-tab active" onclick="switchCoverTab('url-edit', this)"><i class="fa-solid fa-link"></i> URL</button>
+          <button type="button" class="cover-tab" onclick="switchCoverTab('upload-edit', this)"><i class="fa-solid fa-upload"></i> Upload File</button>
+        </div>
+        <div id="url-edit" class="cover-tab-panel">
+          <input type="text" id="edit-cover" class="form-input" placeholder="Paste URL langsung atau link Google Images...">
+          <p class="cover-hint"><i class="fa-solid fa-lightbulb"></i> Bisa paste link dari Google Images (otomatis diekstrak), atau URL gambar langsung.</p>
+        </div>
+        <div id="upload-edit" class="cover-tab-panel hidden">
+          <label class="file-upload-zone" id="upload-zone-edit">
+            <input type="file" id="input-cover-file-edit" accept="image/*" style="display:none;">
+            <div class="upload-zone-inner">
+              <i class="fa-solid fa-cloud-arrow-up"></i>
+              <span>Klik atau drag & drop gambar di sini</span>
+              <small>JPG, PNG, WEBP (maks 2MB)</small>
+            </div>
+            <img id="preview-edit" class="upload-preview hidden" alt="Preview">
+          </label>
+        </div>
+      </div>
+    </div>
+    <button id="btn-simpan-edit" class="btn-primary" style="width:100%; background: var(--green);">Simpan Perubahan</button>
+  </div>
+</div>
+ 
+<!-- DETAIL BUKU MODAL -->
+<div id="detail-modal" class="modal-overlay hidden">
+  <div class="modal-box modal-box-wide">
+    <button class="modal-close" id="close-detail-modal"><i class="fa-solid fa-xmark"></i></button>
+    <div class="detail-layout">
+      <div class="detail-left">
+        <img id="detail-cover" src="" alt="Cover" class="detail-img">
+        <div id="detail-action-container"></div>
+      </div>
+      <div class="detail-right">
+        <div class="detail-category-badge" id="detail-kategori-badge">Kategori</div>
+        <h2 class="detail-title" id="detail-judul">Judul Buku</h2>
+        <p class="detail-author" id="detail-pengarang">Pengarang</p>
+        <div class="detail-meta">
+          <div class="meta-row"><span class="meta-label">Penerbit</span><span id="detail-penerbit">—</span></div>
+          <div class="meta-row"><span class="meta-label">Tahun Terbit</span><span id="detail-tahun">—</span></div>
+          <div class="meta-row"><span class="meta-label">ISBN/ISSN</span><span id="detail-isbn">—</span></div>
+          <div class="meta-row"><span class="meta-label">Ketersediaan</span><span id="detail-stok-info">—</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+ 
+<!-- QR DISPLAY MODAL -->
+<div id="qr-display-modal" class="modal-overlay hidden">
+  <div class="modal-box qr-modal-box" style="text-align:center;">
+    <button class="modal-close" id="close-qr-display"><i class="fa-solid fa-xmark"></i></button>
+    <div class="modal-icon-header qr-icon"><i class="fa-solid fa-qrcode"></i></div>
+    <h2 class="modal-title" id="qr-title">QR Transaksi</h2>
+    <p class="modal-subtitle">Tunjukkan QR ini ke Admin, atau berikan kode manual di bawah</p>
+
+    <!-- Info buku ringkas -->
+    <div class="qr-book-chip" id="qr-book-chip">
+      <img id="qr-book-cover" src="" alt="" class="qr-book-cover">
+      <div class="qr-book-info">
+        <div class="qr-book-title" id="qr-book-title">Judul Buku</div>
+        <div class="qr-book-sub" id="qr-book-sub">Peminjam</div>
+      </div>
+    </div>
+
+    <div id="qr-code-container" class="qr-code-frame"></div>
+
+    <!-- Kode manual sebagai alternatif scan -->
+    <div class="qr-manual-box">
+      <div class="qr-manual-label"><i class="fa-solid fa-keyboard"></i> Atau gunakan Kode Manual</div>
+      <div class="qr-manual-code" id="qr-manual-code">------</div>
+      <button class="qr-copy-btn" id="qr-copy-code-btn" type="button"><i class="fa-regular fa-copy"></i> Salin Kode</button>
+    </div>
+
+    <p id="qr-instructions" class="qr-instructions"></p>
+    <div class="qr-status-pulse" id="qr-status-pulse">
+      <span class="qr-pulse-dot"></span> Menunggu konfirmasi dari Admin…
+    </div>
+  </div>
+</div>
+ 
+<!-- QR SCAN MODAL -->
+<div id="qr-scan-modal" class="modal-overlay hidden">
+  <div class="modal-box qr-modal-box">
+    <button class="modal-close" id="close-qr-scan"><i class="fa-solid fa-xmark"></i></button>
+    <div class="modal-icon-header scan-icon"><i class="fa-solid fa-camera"></i></div>
+    <h2 class="modal-title">Scan QR Code</h2>
+    <p class="modal-subtitle">Arahkan kamera ke QR Code milik siswa/guru</p>
+
+    <div class="scan-mode-switch">
+      <button class="scan-mode-btn active" id="scan-mode-camera" onclick="switchScanMode('camera')"><i class="fa-solid fa-camera"></i> Kamera</button>
+      <button class="scan-mode-btn" id="scan-mode-manual" onclick="switchScanMode('manual')"><i class="fa-solid fa-keyboard"></i> Kode Manual</button>
+    </div>
+
+    <div id="scan-panel-camera" class="scan-panel">
+      <div id="qr-reader" class="qr-reader-frame"></div>
+      <p class="scan-hint"><i class="fa-solid fa-circle-info"></i> Pastikan QR berada di tengah bingkai kamera</p>
+    </div>
+
+    <div id="scan-panel-manual" class="scan-panel hidden">
+      <div class="manual-input-group">
+        <input type="text" id="manual-code-input" class="manual-code-input" placeholder="••••••" maxlength="6" autocomplete="off">
+        <button class="btn-primary" id="btn-submit-manual-code" style="width:100%; margin-top:14px;"><i class="fa-solid fa-check"></i> Proses Kode</button>
+      </div>
+      <p class="scan-hint"><i class="fa-solid fa-circle-info"></i> Minta siswa/guru menyebutkan 6 digit kode manual mereka</p>
+    </div>
+  </div>
+</div>
+
+<!-- KONFIRMASI TRANSAKSI MODAL (pengganti confirm() bawaan browser) -->
+<div id="confirm-modal" class="modal-overlay hidden">
+  <div class="modal-box confirm-modal-box" style="text-align:center;">
+    <div class="modal-icon-header confirm-icon" id="confirm-icon"><i class="fa-solid fa-circle-question"></i></div>
+    <h2 class="modal-title" id="confirm-title">Konfirmasi</h2>
+
+    <div class="confirm-book-chip qr-book-chip" id="confirm-book-chip">
+      <img id="confirm-book-cover" src="" alt="" class="qr-book-cover">
+      <div class="qr-book-info" style="text-align:left;">
+        <div class="qr-book-title" id="confirm-book-title">Judul Buku</div>
+        <div class="qr-book-sub" id="confirm-book-sub">Detail transaksi</div>
+      </div>
+    </div>
+
+    <p class="modal-subtitle" id="confirm-message" style="margin-top:16px;">Apakah Anda yakin?</p>
+    <div class="confirm-actions">
+      <button class="btn-ghost" id="confirm-cancel-btn" style="flex:1;">Batal</button>
+      <button class="btn-primary" id="confirm-ok-btn" style="flex:1;"><i class="fa-solid fa-check"></i> Ya, Setujui</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast-container"></div>
+ 
+<script src="index.js"></script>
+</body>
+</html>
