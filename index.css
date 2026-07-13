@@ -1220,8 +1220,11 @@ input[type="date"].form-input { color: var(--navy); }
 }
 .fitur-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 260px));
   gap: 24px;
+  justify-content: center;
+  max-width: 900px;
+  margin: 0 auto;
 }
 .fitur-card {
   background: var(--white);
