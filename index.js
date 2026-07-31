@@ -14,7 +14,7 @@ const DEFAULT_BOOKS = [
 ];
 
 const DEFAULT_ADMIN = {
-  nis: 'admin', nama: 'Administrator', password: 'admin123',
+  nis: 'admin', nama: 'Administrator', password: 'admin',
   borrowed: [], role: 'admin', nuptk: 'ADMIN'
 };
 
@@ -199,36 +199,79 @@ function fileToBase64(file) {
   });
 })();
 
+// ===== KONFIGURASI API (PHP + MySQL) =====
+const API_URL = 'api'; // sesuaikan path jika folder api/ ada di lokasi lain
+
 // ===== STATE =====
-let books = JSON.parse(localStorage.getItem('booksDB'));
-let users = JSON.parse(localStorage.getItem('usersDB'));
-let history = JSON.parse(localStorage.getItem('historyDB'));
+// books, users, history sekarang diambil dari database via API,
+// bukan lagi dari localStorage. Diisi kosong dulu lalu dimuat oleh loadAllData().
+let books = [];
+let users = [];
+let history = [];
 let currentUser = JSON.parse(sessionStorage.getItem('activeUser')) || null;
 let isLoggedIn = currentUser !== null;
 let isAdmin = isLoggedIn && currentUser.role === 'admin';
 let currentCategory = 'semua';
 let currentPage = 1;
-const booksPerPage = 8;
+const booksPerPage = 10;
 let html5QrcodeScanner = null;
 let loginRole = 'siswa_guru';
 let registerRole = 'siswa';
 let editingBookId = null;
 
+// ===== LOAD DATA DARI DATABASE (menggantikan localStorage) =====
+async function loadAllData() {
+  try {
+    const [bRes, uRes, hRes] = await Promise.all([
+      fetch(`${API_URL}/buku.php`).then(r => r.json()),
+      fetch(`${API_URL}/pengguna.php`).then(r => r.json()),
+      fetch(`${API_URL}/transaksi.php?action=riwayat`).then(r => r.json())
+    ]);
+    books = bRes.data || [];
+    users = uRes.data || [];
+    // Normalisasi bentuk data riwayat dari API (judul_buku -> judul,
+    // tipe 'pinjam'/'kembali' -> 'Pinjam'/'Kembali') agar cocok dengan
+    // renderLaporan() yang sudah ada sebelumnya.
+    history = (hRes.data || []).map(h => ({
+      ...h,
+      judul: h.judul_buku,
+      tipe: h.tipe === 'pinjam' ? 'Pinjam' : 'Kembali'
+    }));
+
+    // Jika ada user yang sedang login, sinkronkan datanya dengan yang terbaru dari server
+    if (currentUser) {
+      const fresh = users.find(u => u.nis === currentUser.nis);
+      if (fresh) { currentUser = fresh; sessionStorage.setItem('activeUser', JSON.stringify(currentUser)); }
+    }
+
+    // Render ulang tampilan setelah data dari database siap
+    if (typeof renderKatalog === 'function') renderKatalog(document.getElementById('search-input')?.value || '');
+    if (typeof renderDashboard === 'function') renderDashboard();
+    if (typeof updateHeroStats === 'function') updateHeroStats();
+    if (typeof renderLaporan === 'function') renderLaporan();
+  } catch (e) {
+    showToast('Gagal memuat data dari server. Pastikan XAMPP/Apache & MySQL aktif.', 'error');
+    console.error(e);
+  }
+}
+
 // ===== SAVE =====
+// Tidak lagi menulis ke localStorage untuk books/users/history.
+// Setiap aksi (tambah/edit/hapus buku, pinjam/kembali, login, register)
+// langsung memanggil API dan menyimpan ke database MySQL secara real-time.
 function saveData() {
-  localStorage.setItem('usersDB', JSON.stringify(users));
-  localStorage.setItem('booksDB', JSON.stringify(books));
-  localStorage.setItem('historyDB', JSON.stringify(history));
   if (currentUser) sessionStorage.setItem('activeUser', JSON.stringify(currentUser));
 }
 
 function addHistory(user, buku, tipe) {
+  // Riwayat kini dicatat otomatis oleh server (transaksi.php) saat
+  // prosesTransaksi() dipanggil, jadi di sini cukup update tampilan lokal
+  // agar terasa instan sebelum loadAllData() menyegarkan dari database.
   history.unshift({
     waktu: new Date().toLocaleString('id-ID'),
     nama: user.nama, nis: user.nis, role: user.role || 'siswa',
     judul: buku.judul, tipe
   });
-  saveData();
 }
 
 // ===== TOAST =====
@@ -288,9 +331,15 @@ function renderKatalog(filterText = '') {
     let btn = '';
     if (!isAdmin) {
       if (borrowedByMe) {
-        btn = `<button class="book-btn book-btn-return" onclick="kembalikanBuku(${buku.id})">Kembalikan</button>`;
+        const diKeranjangKembali = returnCart.includes(buku.id);
+        btn = diKeranjangKembali
+          ? `<button class="book-btn book-btn-in-cart" onclick="kembalikanBuku(${buku.id})"><i class="fa-solid fa-check"></i> Dipilih</button>`
+          : `<button class="book-btn book-btn-return" onclick="kembalikanBuku(${buku.id})">Kembalikan</button>`;
       } else if (buku.stok > 0 && isLoggedIn) {
-        btn = `<button class="book-btn book-btn-borrow" onclick="pinjamBuku(${buku.id})">Pinjam</button>`;
+        const diKeranjang = borrowCart.includes(buku.id);
+        btn = diKeranjang
+          ? `<button class="book-btn book-btn-in-cart" onclick="pinjamBuku(${buku.id})"><i class="fa-solid fa-check"></i> Dipilih</button>`
+          : `<button class="book-btn book-btn-borrow" onclick="pinjamBuku(${buku.id})">+ Pinjam</button>`;
       } else if (!isLoggedIn && buku.stok > 0) {
         btn = `<button class="book-btn book-btn-borrow" onclick="showLogin()">Pinjam</button>`;
       } else {
@@ -425,17 +474,25 @@ function renderAdminBorrows() {
   }
 }
 
-function renderUserList() {
+function renderUserList(keyword) {
   const container = document.getElementById('user-list-container');
-  const nonAdmins = users.filter(u => u.role !== 'admin');
+  const kw = (keyword !== undefined ? keyword : (document.getElementById('user-search')?.value || '')).trim().toLowerCase();
+  let nonAdmins = users.filter(u => u.role !== 'admin');
+
+  if (kw) {
+    nonAdmins = nonAdmins.filter(u =>
+      u.nama.toLowerCase().includes(kw) || String(u.nis).toLowerCase().includes(kw)
+    );
+  }
+
   if (nonAdmins.length === 0) {
-    container.innerHTML = '<p style="color: var(--gray-500); text-align:center; padding:24px;">Belum ada anggota terdaftar.</p>';
+    container.innerHTML = `<p style="color: var(--gray-500); text-align:center; padding:24px;">${kw ? `Tidak ada anggota yang cocok dengan "${keyword}".` : 'Belum ada anggota terdaftar.'}</p>`;
     return;
   }
   let rows = nonAdmins.map(u => `
     <tr>
-      <td><strong>${u.nama}</strong></td>
-      <td>${u.nis}</td>
+      <td><strong>${hl(u.nama, kw)}</strong></td>
+      <td>${hl(String(u.nis), kw)}</td>
       <td><span class="role-chip role-chip-${u.role === 'guru' ? 'guru' : 'siswa'}">${u.role === 'guru' ? 'Guru' : 'Siswa'}</span></td>
       <td>${u.borrowed ? u.borrowed.length : 0} buku</td>
       <td><button class="btn-danger" onclick="hapusUser('${u.nis}')"><i class="fa-solid fa-trash"></i> Hapus</button></td>
@@ -450,6 +507,62 @@ function renderUserList() {
     </div>
   `;
 }
+
+document.getElementById('user-search')?.addEventListener('input', function() {
+  renderUserList(this.value);
+});
+
+// ===== ADMIN: TAMBAH ANGGOTA LANGSUNG DARI DASHBOARD =====
+document.getElementById('input-role-anggota')?.addEventListener('change', function() {
+  const role = this.value;
+  const nisLabel = document.getElementById('label-nis-anggota');
+  const pwLabel = document.getElementById('label-password-anggota');
+  const nisInput = document.getElementById('input-nis-anggota');
+  if (role === 'guru') {
+    nisLabel.textContent = 'NUPTK *';
+    nisInput.placeholder = 'Masukkan NUPTK';
+  } else if (role === 'admin') {
+    nisLabel.textContent = 'Username *';
+    nisInput.placeholder = 'Masukkan username admin';
+  } else {
+    nisLabel.textContent = 'NIS *';
+    nisInput.placeholder = 'Masukkan NIS';
+  }
+  pwLabel.textContent = role === 'admin' ? 'Password *' : 'Password (opsional untuk Siswa/Guru)';
+});
+
+document.getElementById('btn-tambah-anggota')?.addEventListener('click', async () => {
+  if (!isAdmin) return;
+  const role = document.getElementById('input-role-anggota').value;
+  const nis = document.getElementById('input-nis-anggota').value.trim();
+  const nama = document.getElementById('input-nama-anggota').value.trim();
+  const password = document.getElementById('input-password-anggota').value.trim();
+
+  if (!nis || !nama) { showToast('Isi Role, NIS/NUPTK, dan Nama terlebih dahulu!', 'error'); return; }
+  if (role === 'admin' && !password) { showToast('Password wajib diisi untuk akun Admin!', 'error'); return; }
+
+  try {
+    const res = await fetch(`${API_URL}/pengguna.php`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nis, nama, password, role })
+    }).then(r => r.json());
+
+    if (!res.success) { showToast(res.message || 'Gagal menambah anggota (mungkin NIS/NUPTK sudah dipakai).', 'error'); return; }
+
+    showToast(`Anggota "${nama}" berhasil ditambahkan!`, 'success');
+    document.getElementById('input-nis-anggota').value = '';
+    document.getElementById('input-nama-anggota').value = '';
+    document.getElementById('input-password-anggota').value = '';
+    document.getElementById('input-role-anggota').value = 'siswa';
+    document.getElementById('label-nis-anggota').textContent = 'NIS *';
+    document.getElementById('label-password-anggota').textContent = 'Password (opsional untuk Siswa/Guru)';
+    await loadAllData();
+  } catch (e) {
+    showToast('Gagal terhubung ke server.', 'error');
+    console.error(e);
+  }
+});
 
 function updateStudentStats() {
   if (!currentUser) return;
@@ -469,28 +582,46 @@ function updateStudentStats() {
 function renderStudentBorrows() {
   const container = document.getElementById('daftar-pinjaman');
   container.innerHTML = '';
+
   if (!currentUser.borrowed || currentUser.borrowed.length === 0) {
-    container.innerHTML = '<p class="empty-borrow-msg">Belum ada buku yang sedang dipinjam.</p>'; return;
+    container.innerHTML = '<p class="empty-borrow-msg">Belum ada buku yang sedang dipinjam.</p>';
+    updateReturnCartBar();
+    return;
   }
+
   currentUser.borrowed.forEach(idBuku => {
     const buku = books.find(b => b.id === idBuku);
     if (!buku) return;
     const dueDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('id-ID');
+    const dipilih = returnCart.includes(idBuku);
+
     const card = document.createElement('div');
-    card.className = 'borrow-card';
+    card.className = `borrow-card return-selectable${dipilih ? ' return-selected' : ''}`;
+    card.dataset.id = idBuku;
     card.innerHTML = `
+      <div class="return-check-wrap" onclick="kembalikanBuku(${idBuku})">
+        <div class="return-check-box${dipilih ? ' checked' : ''}">
+          <i class="fa-solid fa-check"></i>
+        </div>
+      </div>
       <img src="${buku.cover || ''}" alt="${buku.judul}" class="borrow-cover" onerror="this.src='https://via.placeholder.com/60x80/e2e8f0/64748b'">
       <div class="borrow-info">
         <div class="borrow-title">${buku.judul}</div>
-        <div class="borrow-user-tag"><i class="fa-regular fa-calendar"></i> Batas: ${dueDate}</div>
-        <div class="borrow-actions">
-          <button class="btn-danger" onclick="kembalikanBuku(${buku.id})"><i class="fa-solid fa-rotate-left"></i> Kembalikan</button>
-          <button class="btn-primary" style="font-size:12px; padding:7px 14px;" onclick="generateQR('return', '${currentUser.nis}', ${buku.id})"><i class="fa-solid fa-qrcode"></i> QR Kembali</button>
+        <div class="borrow-user-tag"><i class="fa-solid fa-feather"></i> ${buku.pengarang || 'Pengarang tidak diketahui'}</div>
+        <div class="borrow-user-tag" style="margin-top:2px;"><i class="fa-regular fa-calendar-xmark"></i> Batas: ${dueDate}</div>
+        <div class="borrow-actions" style="margin-top:10px;">
+          <button class="btn-return-toggle${dipilih ? ' selected' : ''}" onclick="kembalikanBuku(${idBuku})">
+            ${dipilih
+              ? '<i class="fa-solid fa-xmark"></i> Batalkan Pilihan'
+              : '<i class="fa-solid fa-rotate-left"></i> Pilih untuk Kembalikan'}
+          </button>
         </div>
       </div>
     `;
     container.appendChild(card);
   });
+
+  updateReturnCartBar();
 }
 
 function renderMemberQR() {
@@ -652,11 +783,19 @@ window.bukaDetailBuku = function(id) {
 
   if (!isAdmin) {
     if (borrowedByMe) {
-      actionContainer.innerHTML = `<button class="btn-danger" style="width:100%;" onclick="kembalikanBuku(${buku.id}); closeDetailModal()"><i class="fa-solid fa-rotate-left"></i> Kembalikan Buku</button>`;
+      const diKeranjangKembali = returnCart.includes(buku.id);
+      actionContainer.innerHTML = diKeranjangKembali
+        ? `<button class="btn-danger" style="width:100%; background: var(--green); color:white; border-color: var(--green);" onclick="kembalikanBuku(${buku.id})"><i class="fa-solid fa-check"></i> Dipilih — Klik untuk Batal</button>`
+        : `<button class="btn-danger" style="width:100%;" onclick="kembalikanBuku(${buku.id})"><i class="fa-solid fa-rotate-left"></i> Pilih untuk Dikembalikan</button>`;
     } else if (buku.stok > 0) {
-      actionContainer.innerHTML = isLoggedIn
-        ? `<button class="btn-primary" style="width:100%;" onclick="pinjamBuku(${buku.id}); closeDetailModal()"><i class="fa-solid fa-book"></i> Pinjam Buku</button>`
-        : `<button class="btn-primary" style="width:100%;" onclick="showLogin()"><i class="fa-solid fa-right-to-bracket"></i> Login untuk Pinjam</button>`;
+      if (isLoggedIn) {
+        const diKeranjang = borrowCart.includes(buku.id);
+        actionContainer.innerHTML = diKeranjang
+          ? `<button class="btn-primary" style="width:100%; background: var(--green);" onclick="pinjamBuku(${buku.id})"><i class="fa-solid fa-check"></i> Dipilih — Klik untuk Batal</button>`
+          : `<button class="btn-primary" style="width:100%;" onclick="pinjamBuku(${buku.id})"><i class="fa-solid fa-book"></i> Pilih untuk Dipinjam</button>`;
+      } else {
+        actionContainer.innerHTML = `<button class="btn-primary" style="width:100%;" onclick="showLogin()"><i class="fa-solid fa-right-to-bracket"></i> Login untuk Pinjam</button>`;
+      }
     } else {
       actionContainer.innerHTML = `<button class="btn-ghost" style="width:100%; cursor:not-allowed;" disabled>Stok Habis</button>`;
     }
@@ -667,18 +806,112 @@ window.bukaDetailBuku = function(id) {
 
 function closeDetailModal() { closeModal('detail-modal'); }
 
-// ===== PINJAM & KEMBALI =====
+// ===== KERANJANG PINJAM (pilih beberapa buku -> 1 QR Code) =====
+let borrowCart = [];
+const MAX_PINJAM = 3; // sesuai aturan peminjaman: maksimal 3 buku per anggota
+
 window.pinjamBuku = function(idBuku) {
   if (!isLoggedIn) { showLogin(); return; }
   const buku = books.find(b => b.id === idBuku);
-  if (!buku || buku.stok <= 0) { showToast('Stok buku habis!', 'error'); return; }
+  if (!buku) return;
   if (currentUser.borrowed && currentUser.borrowed.includes(idBuku)) { showToast('Buku ini sudah kamu pinjam.', 'error'); return; }
-  generateQR('borrow', currentUser.nis, idBuku);
+
+  if (borrowCart.includes(idBuku)) {
+    borrowCart = borrowCart.filter(id => id !== idBuku);
+  } else {
+    const totalAktif = (currentUser.borrowed ? currentUser.borrowed.length : 0) + borrowCart.length;
+    if (totalAktif >= MAX_PINJAM) {
+      showToast(`Maksimal ${MAX_PINJAM} buku per anggota. Buat QR untuk buku yang sudah dipilih dulu.`, 'error');
+      return;
+    }
+    if (buku.stok <= 0) { showToast('Stok buku habis!', 'error'); return; }
+    borrowCart.push(idBuku);
+    showToast(`"${buku.judul}" ditambahkan ke pilihan pinjam.`, 'success');
+  }
+  renderKatalog(document.getElementById('search-input').value);
+  updateBorrowCartBar();
+  // Jika modal detail buku ini sedang terbuka, refresh tombolnya juga
+  const detailModal = document.getElementById('detail-modal');
+  if (detailModal && !detailModal.classList.contains('hidden') && document.getElementById('detail-judul').textContent === buku.judul) {
+    bukaDetailBuku(idBuku);
+  }
 };
+
+function updateBorrowCartBar() {
+  const bar = document.getElementById('borrow-cart-bar');
+  if (!bar) return;
+  if (borrowCart.length === 0) { bar.classList.add('hidden'); return; }
+  bar.classList.remove('hidden');
+  const judulList = borrowCart.map(id => books.find(b => b.id === id)?.judul).filter(Boolean).join(', ');
+  document.getElementById('cart-count-text').textContent = `${borrowCart.length} buku dipilih: ${judulList}`;
+}
+
+window.batalkanBorrowCart = function() {
+  borrowCart = [];
+  renderKatalog(document.getElementById('search-input').value);
+  updateBorrowCartBar();
+};
+
+window.buatQRDariCart = function() {
+  if (!isLoggedIn) { showLogin(); return; }
+  if (borrowCart.length === 0) { showToast('Pilih minimal 1 buku terlebih dahulu.', 'error'); return; }
+  generateQR(currentUser.nis, [...borrowCart]);
+  borrowCart = [];
+  renderKatalog(document.getElementById('search-input').value);
+  updateBorrowCartBar();
+};
+
+// ===== KERANJANG KEMBALI (pilih beberapa buku -> 1 QR Code pengembalian) =====
+let returnCart = [];
 
 window.kembalikanBuku = function(idBuku) {
   if (!isLoggedIn) return;
-  generateQR('return', currentUser.nis, idBuku);
+  const buku = books.find(b => b.id === idBuku);
+  if (!buku) return;
+  if (!currentUser.borrowed || !currentUser.borrowed.includes(idBuku)) {
+    showToast('Buku ini tidak sedang kamu pinjam.', 'error'); return;
+  }
+
+  if (returnCart.includes(idBuku)) {
+    returnCart = returnCart.filter(id => id !== idBuku);
+  } else {
+    returnCart.push(idBuku);
+    showToast(`"${buku.judul}" ditambahkan ke pilihan kembali.`, 'success');
+  }
+  renderStudentBorrows();
+};
+
+function updateReturnCartBar() {
+  const bar = document.getElementById('return-cart-bar');
+  const borrowBar = document.getElementById('borrow-cart-bar');
+  if (!bar) return;
+  if (returnCart.length === 0) { bar.classList.add('hidden'); return; }
+  bar.classList.remove('hidden');
+  const judulList = returnCart.map(id => books.find(b => b.id === id)?.judul).filter(Boolean);
+  const preview = judulList.length <= 2
+    ? judulList.join(', ')
+    : `${judulList.slice(0,2).join(', ')} +${judulList.length - 2} lainnya`;
+  document.getElementById('return-cart-count-text').textContent =
+    `${returnCart.length} buku dipilih: ${preview}`;
+  // Kalau borrow cart juga aktif, naikan return bar supaya tidak tumpang tindih
+  if (borrowBar && !borrowBar.classList.contains('hidden')) {
+    bar.style.bottom = '90px';
+  } else {
+    bar.style.bottom = '22px';
+  }
+}
+
+window.batalkanReturnCart = function() {
+  returnCart = [];
+  renderStudentBorrows();
+};
+
+window.buatQRDariReturnCart = function() {
+  if (!isLoggedIn) { showLogin(); return; }
+  if (returnCart.length === 0) { showToast('Pilih minimal 1 buku terlebih dahulu.', 'error'); return; }
+  generateReturnQR(currentUser.nis, [...returnCart]);
+  returnCart = [];
+  renderStudentBorrows();
 };
 
 window.adminApproveReturn = function(nis, idBuku) {
@@ -712,47 +945,33 @@ window.hapusUser = function(nis) {
     type: 'danger',
     title: 'Hapus Anggota?',
     message: `Hapus anggota <strong>${user.nama}</strong> (${nis})? Semua data peminjaman akan dihapus.`,
-    onConfirm: () => {
-      if (user.borrowed) {
-        user.borrowed.forEach(idBuku => {
-          const buku = books.find(b => b.id === idBuku);
-          if (buku) buku.stok += 1;
-        });
+    onConfirm: async () => {
+      try {
+        const res = await fetch(`${API_URL}/pengguna.php`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nis })
+        }).then(r => r.json());
+
+        if (!res.success) { showToast(res.message || 'Gagal menghapus anggota', 'error'); return; }
+
+        showToast('Anggota berhasil dihapus.', 'success');
+        await loadAllData();
+      } catch (e) {
+        showToast('Gagal terhubung ke server.', 'error');
+        console.error(e);
       }
-      users = users.filter(u => u.nis !== nis);
-      saveData();
-      showToast('Anggota berhasil dihapus.', 'success');
-      renderDashboard();
     }
   });
 };
 
-// ===== QR SYSTEM (redesigned: QR + manual code fallback) =====
-// Kode manual aktif disimpan sementara di memori (berlaku selama sesi/transaksi belum diproses)
-let activeManualCodes = JSON.parse(sessionStorage.getItem('activeManualCodes') || '{}');
-
-function saveManualCodes() {
-  sessionStorage.setItem('activeManualCodes', JSON.stringify(activeManualCodes));
-}
-
-function generateManualCode() {
-  // 6 digit angka, dipastikan belum dipakai kode aktif lain
-  let code;
-  do { code = String(Math.floor(100000 + Math.random() * 900000)); }
-  while (activeManualCodes[code]);
-  return code;
-}
-
-function generateQR(action, nis, idBuku) {
-  const buku = books.find(b => b.id === idBuku);
-  if (!buku) return;
+// ===== QR SYSTEM (mendukung 1 QR untuk banyak buku sekaligus — pinjam & kembali) =====
+function generateQR(nis, idBukuInput) {
+  const idList = Array.isArray(idBukuInput) ? idBukuInput : [idBukuInput];
+  const bukuList = idList.map(id => books.find(b => b.id === id)).filter(Boolean);
+  if (bukuList.length === 0) return;
   const targetUser = users.find(u => u.nis === nis);
-  const payload = JSON.stringify({ action, nis, idBuku });
-
-  // Buat & simpan kode manual yang merujuk ke payload yang sama
-  const code = generateManualCode();
-  activeManualCodes[code] = payload;
-  saveManualCodes();
+  const payload = JSON.stringify({ action: 'borrow', nis, idBuku: idList });
 
   const container = document.getElementById('qr-code-container');
   container.innerHTML = '';
@@ -761,55 +980,58 @@ function generateQR(action, nis, idBuku) {
     colorDark: '#1b2435', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.H
   });
 
-  document.getElementById('qr-title').textContent = action === 'borrow' ? '📖 QR Pinjam Buku' : '🔄 QR Kembalikan Buku';
-  document.getElementById('qr-instructions').textContent =
-    `${action === 'borrow' ? 'Peminjaman' : 'Pengembalian'} akan aktif setelah dikonfirmasi Admin`;
+  const jumlah = bukuList.length;
+  document.getElementById('qr-title').textContent = jumlah > 1 ? `📖 QR Pinjam ${jumlah} Buku` : '📖 QR Pinjam Buku';
+  document.getElementById('qr-instructions').textContent = 'Peminjaman akan aktif setelah dikonfirmasi Admin';
 
-  // Info buku ringkas
-  document.getElementById('qr-book-cover').src = buku.cover || '';
-  document.getElementById('qr-book-cover').onerror = function() { this.src = 'https://via.placeholder.com/42x56/e7e0d2/6f6657?text=📖'; };
-  document.getElementById('qr-book-title').textContent = buku.judul;
-  document.getElementById('qr-book-sub').textContent = targetUser ? `${targetUser.nama} · ${nis}` : nis;
+  // Info peminjam
+  document.getElementById('qr-peminjam-info').textContent = targetUser ? `${targetUser.nama} · ${nis}` : nis;
 
-  // Tampilkan kode manual
-  document.getElementById('qr-manual-code').textContent = code.slice(0,3) + ' ' + code.slice(3);
-  document.getElementById('qr-manual-code').dataset.raw = code;
+  // Daftar buku (bisa lebih dari satu, tetap dalam 1 QR yang sama)
+  document.getElementById('qr-book-list').innerHTML = bukuList.map(b => `
+    <div class="qr-book-chip">
+      <img src="${b.cover || ''}" alt="" class="qr-book-cover" onerror="this.src='https://via.placeholder.com/42x56/e7e0d2/6f6657?text=📖'">
+      <div class="qr-book-info">
+        <div class="qr-book-title">${b.judul}</div>
+      </div>
+    </div>
+  `).join('');
 
   openModal('qr-display-modal');
 }
 
-document.getElementById('qr-copy-code-btn')?.addEventListener('click', function() {
-  const raw = document.getElementById('qr-manual-code').dataset.raw || '';
-  if (!raw) return;
-  navigator.clipboard?.writeText(raw).then(() => {
-    this.classList.add('copied');
-    this.innerHTML = '<i class="fa-solid fa-check"></i> Tersalin!';
-    setTimeout(() => {
-      this.classList.remove('copied');
-      this.innerHTML = '<i class="fa-regular fa-copy"></i> Salin Kode';
-    }, 1800);
-  }).catch(() => showToast('Gagal menyalin kode.', 'error'));
-});
+function generateReturnQR(nis, idBukuInput) {
+  const idList = Array.isArray(idBukuInput) ? idBukuInput : [idBukuInput];
+  const bukuList = idList.map(id => books.find(b => b.id === id)).filter(Boolean);
+  if (bukuList.length === 0) return;
+  const targetUser = users.find(u => u.nis === nis);
+  const payload = JSON.stringify({ action: 'return', nis, idBuku: idList });
 
-// ===== SCAN MODE SWITCH (Kamera / Kode Manual) =====
-function switchScanMode(mode) {
-  const camBtn = document.getElementById('scan-mode-camera');
-  const manBtn = document.getElementById('scan-mode-manual');
-  const camPanel = document.getElementById('scan-panel-camera');
-  const manPanel = document.getElementById('scan-panel-manual');
+  const container = document.getElementById('qr-code-container');
+  container.innerHTML = '';
+  new QRCode(container, {
+    text: payload, width: 200, height: 200,
+    colorDark: '#1b2435', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.H
+  });
 
-  if (mode === 'camera') {
-    camBtn.classList.add('active'); manBtn.classList.remove('active');
-    camPanel.classList.remove('hidden'); manPanel.classList.add('hidden');
-    startScanner();
-  } else {
-    manBtn.classList.add('active'); camBtn.classList.remove('active');
-    manPanel.classList.remove('hidden'); camPanel.classList.add('hidden');
-    stopScanner();
-    setTimeout(() => document.getElementById('manual-code-input')?.focus(), 100);
-  }
+  const jumlah = bukuList.length;
+  document.getElementById('qr-title').textContent = jumlah > 1 ? `🔄 QR Kembalikan ${jumlah} Buku` : '🔄 QR Kembalikan Buku';
+  document.getElementById('qr-instructions').textContent = 'Pengembalian akan aktif setelah dikonfirmasi Admin';
+
+  document.getElementById('qr-peminjam-info').textContent = targetUser ? `${targetUser.nama} · ${nis}` : nis;
+
+  document.getElementById('qr-book-list').innerHTML = bukuList.map(b => `
+    <div class="qr-book-chip">
+      <img src="${b.cover || ''}" alt="" class="qr-book-cover" onerror="this.src='https://via.placeholder.com/42x56/e7e0d2/6f6657?text=📖'">
+      <div class="qr-book-info">
+        <div class="qr-book-title">${b.judul}</div>
+      </div>
+    </div>
+  `).join('');
+
+  openModal('qr-display-modal');
 }
-window.switchScanMode = switchScanMode;
+
 
 function startScanner() {
   if (html5QrcodeScanner) return;
@@ -819,93 +1041,105 @@ function startScanner() {
     { fps: 10, qrbox: { width: 250, height: 250 } },
     onScanSuccess, () => {}
   ).catch(() => {
-    showToast('Tidak bisa mengakses kamera. Gunakan Kode Manual.', 'error');
-    switchScanMode('manual');
+    showToast('Tidak bisa mengakses kamera. Periksa izin kamera browser Anda.', 'error');
   });
 }
 
 document.getElementById('btn-scan-qr')?.addEventListener('click', () => {
   openModal('qr-scan-modal');
-  switchScanMode('camera');
-});
-
-document.getElementById('btn-submit-manual-code')?.addEventListener('click', () => {
-  const input = document.getElementById('manual-code-input');
-  const code = (input.value || '').trim();
-  if (code.length !== 6) { showToast('Kode harus 6 digit.', 'error'); return; }
-  const payload = activeManualCodes[code];
-  if (!payload) { showToast('Kode tidak ditemukan atau sudah kedaluwarsa.', 'error'); return; }
-  processTransactionPayload(payload, code);
-  input.value = '';
-});
-
-document.getElementById('manual-code-input')?.addEventListener('keypress', (e) => {
-  if (e.key === 'Enter') document.getElementById('btn-submit-manual-code').click();
-});
-// Hanya izinkan angka pada input kode manual
-document.getElementById('manual-code-input')?.addEventListener('input', function() {
-  this.value = this.value.replace(/\D/g, '').slice(0, 6);
+  startScanner();
 });
 
 function onScanSuccess(decodedText) {
   stopScanner();
   closeModal('qr-scan-modal');
-  processTransactionPayload(decodedText, null);
+  processTransactionPayload(decodedText);
 }
 
-// Proses payload transaksi (dipakai oleh scan kamera maupun kode manual)
-function processTransactionPayload(decodedText, usedManualCode) {
+// Proses payload transaksi hasil scan QR (mendukung 1 atau banyak buku sekaligus)
+function processTransactionPayload(decodedText) {
   let data;
-  try { data = JSON.parse(decodedText); } catch(e) { showToast('QR / Kode tidak valid!', 'error'); return; }
+  try { data = JSON.parse(decodedText); } catch(e) { showToast('QR tidak valid!', 'error'); return; }
 
   if (data.action === 'member') {
     showToast(`QR anggota: ${data.nis}`, 'info'); return;
   }
 
-  const { action, nis, idBuku } = data;
+  const { action, nis } = data;
+  const idList = Array.isArray(data.idBuku) ? data.idBuku : [data.idBuku];
   const targetUser = users.find(u => u.nis === nis);
-  const buku = books.find(b => b.id === idBuku);
-  if (!targetUser || !buku) { showToast('Data tidak valid!', 'error'); return; }
+  if (!targetUser) { showToast('Data anggota tidak valid!', 'error'); return; }
+  const bukuList = idList.map(id => books.find(b => b.id === id)).filter(Boolean);
+  if (bukuList.length === 0) { showToast('Data buku tidak valid!', 'error'); return; }
 
   if (action === 'borrow') {
-    if (buku.stok <= 0) { showToast('Stok buku habis!', 'error'); return; }
-    if (targetUser.borrowed.includes(idBuku)) { showToast('Siswa sudah meminjam buku ini!', 'error'); return; }
+    const valid = bukuList.filter(b => b.stok > 0 && !targetUser.borrowed.includes(b.id));
+    const dilewati = bukuList.length - valid.length;
+    if (valid.length === 0) { showToast('Buku tidak tersedia atau sudah dipinjam.', 'error'); return; }
+    const daftarJudul = valid.map(b => b.judul).join(', ');
     showConfirmModal({
       type: 'success',
       title: 'Konfirmasi Peminjaman',
-      message: `Setujui peminjaman buku ini oleh <strong>${targetUser.nama}</strong>?`,
-      cover: buku.cover, bookTitle: buku.judul, bookSub: `NIS/NUPTK: ${nis}`,
-      onConfirm: () => {
-        buku.stok -= 1;
-        if (!targetUser.borrowed) targetUser.borrowed = [];
-        targetUser.borrowed.push(idBuku);
-        if (currentUser && currentUser.nis === nis) { currentUser.borrowed.push(idBuku); }
-        addHistory(targetUser, buku, 'Pinjam');
-        if (usedManualCode) { delete activeManualCodes[usedManualCode]; saveManualCodes(); }
-        showToast(`✅ Peminjaman "${buku.judul}" disetujui!`, 'success');
-        closeModal('qr-display-modal');
-        renderDashboard(); renderKatalog(document.getElementById('search-input').value);
-        if (isAdmin && !document.getElementById('laporan').classList.contains('hidden')) renderLaporan();
+      message: `Setujui peminjaman ${valid.length > 1 ? valid.length + ' buku' : 'buku ini'} (${daftarJudul}) oleh <strong>${targetUser.nama}</strong>?` +
+        (dilewati > 0 ? `<br><small style="color:var(--red);">${dilewati} buku dilewati (stok habis / sudah dipinjam).</small>` : ''),
+      cover: valid[0].cover,
+      bookTitle: valid.length > 1 ? `${valid.length} Buku Dipilih` : valid[0].judul,
+      bookSub: `NIS/NUPTK: ${nis}`,
+      onConfirm: async () => {
+        try {
+          for (const buku of valid) {
+            const res = await fetch(`${API_URL}/transaksi.php`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ nis, id_buku: buku.id, tipe: 'pinjam' })
+            }).then(r => r.json());
+            if (!res.success) { showToast(`${buku.judul}: ${res.message}`, 'error'); }
+          }
+          showToast(`✅ Peminjaman ${valid.length > 1 ? valid.length + ' buku' : `"${valid[0].judul}"`} disetujui!`, 'success');
+          closeModal('qr-display-modal');
+          await loadAllData();
+          if (isAdmin && !document.getElementById('laporan').classList.contains('hidden')) renderLaporan();
+        } catch (e) {
+          showToast('Gagal terhubung ke server.', 'error');
+          console.error(e);
+        }
       }
     });
   } else if (action === 'return') {
+    const valid = bukuList.filter(b => targetUser.borrowed && targetUser.borrowed.includes(b.id));
+    const dilewati = bukuList.length - valid.length;
+    if (valid.length === 0) { showToast('Buku tidak sedang dipinjam oleh anggota ini.', 'error'); return; }
+    const daftarJudul = valid.map(b => b.judul).join(', ');
     showConfirmModal({
       type: 'success',
       title: 'Konfirmasi Pengembalian',
-      message: `Setujui pengembalian buku ini dari <strong>${targetUser.nama}</strong>?`,
-      cover: buku.cover, bookTitle: buku.judul, bookSub: `NIS/NUPTK: ${nis}`,
-      onConfirm: () => {
-        buku.stok += 1;
-        targetUser.borrowed = targetUser.borrowed.filter(id => id !== idBuku);
-        if (currentUser && currentUser.nis === nis) { currentUser.borrowed = currentUser.borrowed.filter(id => id !== idBuku); }
-        addHistory(targetUser, buku, 'Kembali');
-        if (usedManualCode) { delete activeManualCodes[usedManualCode]; saveManualCodes(); }
-        showToast(`✅ Pengembalian "${buku.judul}" berhasil!`, 'success');
-        closeModal('qr-display-modal');
-        renderDashboard(); renderKatalog(document.getElementById('search-input').value);
-        if (isAdmin && !document.getElementById('laporan').classList.contains('hidden')) renderLaporan();
+      message: `Setujui pengembalian ${valid.length > 1 ? valid.length + ' buku' : 'buku ini'} (${daftarJudul}) dari <strong>${targetUser.nama}</strong>?` +
+        (dilewati > 0 ? `<br><small style="color:var(--red);">${dilewati} buku dilewati (bukan sedang dipinjam).</small>` : ''),
+      cover: valid[0].cover,
+      bookTitle: valid.length > 1 ? `${valid.length} Buku Dipilih` : valid[0].judul,
+      bookSub: `NIS/NUPTK: ${nis}`,
+      onConfirm: async () => {
+        try {
+          for (const buku of valid) {
+            const res = await fetch(`${API_URL}/transaksi.php`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ nis, id_buku: buku.id, tipe: 'kembali' })
+            }).then(r => r.json());
+            if (!res.success) { showToast(`${buku.judul}: ${res.message}`, 'error'); }
+          }
+          showToast(`✅ Pengembalian ${valid.length > 1 ? valid.length + ' buku' : `"${valid[0].judul}"`} disetujui!`, 'success');
+          closeModal('qr-display-modal');
+          await loadAllData();
+          if (isAdmin && !document.getElementById('laporan').classList.contains('hidden')) renderLaporan();
+        } catch (e) {
+          showToast('Gagal terhubung ke server.', 'error');
+          console.error(e);
+        }
       }
     });
+  } else {
+    showToast('QR tidak dikenali.', 'error');
   }
 }
 
@@ -972,24 +1206,43 @@ window.bukaEditBuku = function(id) {
   openModal('edit-modal');
 };
 
-document.getElementById('btn-simpan-edit').addEventListener('click', () => {
+document.getElementById('btn-simpan-edit').addEventListener('click', async () => {
   if (!isAdmin) return;
   const idx = books.findIndex(b => b.id === editingBookId);
   if (idx === -1) return;
-  books[idx].judul = document.getElementById('edit-judul').value.trim();
-  books[idx].pengarang = document.getElementById('edit-pengarang').value.trim();
-  books[idx].kategori = document.getElementById('edit-kategori').value;
-  books[idx].stok = parseInt(document.getElementById('edit-stok').value) || 0;
-  books[idx].penerbit = document.getElementById('edit-penerbit').value.trim();
-  books[idx].tahun = document.getElementById('edit-tahun').value.trim();
-  books[idx].isbn = document.getElementById('edit-isbn').value.trim();
+
   const coverUrl = extractImageUrl(document.getElementById('edit-cover').value.trim());
   const coverFile = window.getPendingCoverEdit ? window.getPendingCoverEdit() : '';
-  books[idx].cover = coverFile || coverUrl;
-  if (window.resetCoverEdit) window.resetCoverEdit();
-  saveData(); closeModal('edit-modal');
-  showToast('Buku berhasil diperbarui!', 'success');
-  renderKatalog(document.getElementById('search-input').value); renderDashboard();
+
+  const payload = {
+    id: editingBookId,
+    judul: document.getElementById('edit-judul').value.trim(),
+    pengarang: document.getElementById('edit-pengarang').value.trim(),
+    kategori: document.getElementById('edit-kategori').value,
+    stok: parseInt(document.getElementById('edit-stok').value) || 0,
+    penerbit: document.getElementById('edit-penerbit').value.trim(),
+    tahun: document.getElementById('edit-tahun').value.trim(),
+    isbn: document.getElementById('edit-isbn').value.trim(),
+    cover: coverFile || coverUrl
+  };
+
+  try {
+    const res = await fetch(`${API_URL}/buku.php`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(r => r.json());
+
+    if (!res.success) { showToast(res.message || 'Gagal memperbarui buku', 'error'); return; }
+
+    if (window.resetCoverEdit) window.resetCoverEdit();
+    closeModal('edit-modal');
+    showToast('Buku berhasil diperbarui!', 'success');
+    await loadAllData();
+  } catch (e) {
+    showToast('Gagal terhubung ke server.', 'error');
+    console.error(e);
+  }
 });
 
 window.hapusBuku = function(id) {
@@ -1001,18 +1254,27 @@ window.hapusBuku = function(id) {
     title: 'Hapus Buku?',
     message: 'Buku ini akan dihapus secara permanen dari katalog.',
     cover: buku.cover, bookTitle: buku.judul, bookSub: `Stok saat ini: ${buku.stok}`,
-    onConfirm: () => {
-      users.forEach(u => { if (u.borrowed) u.borrowed = u.borrowed.filter(bid => bid !== id); });
-      if (currentUser && currentUser.borrowed) currentUser.borrowed = currentUser.borrowed.filter(bid => bid !== id);
-      books = books.filter(b => b.id !== id);
-      saveData();
-      showToast('Buku berhasil dihapus.', 'success');
-      renderKatalog(document.getElementById('search-input').value); renderDashboard();
+    onConfirm: async () => {
+      try {
+        const res = await fetch(`${API_URL}/buku.php`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id })
+        }).then(r => r.json());
+
+        if (!res.success) { showToast(res.message || 'Gagal menghapus buku', 'error'); return; }
+
+        showToast('Buku berhasil dihapus.', 'success');
+        await loadAllData();
+      } catch (e) {
+        showToast('Gagal terhubung ke server.', 'error');
+        console.error(e);
+      }
     }
   });
 };
 
-document.getElementById('btn-tambah-buku').addEventListener('click', () => {
+document.getElementById('btn-tambah-buku').addEventListener('click', async () => {
   if (!isAdmin) return;
   const judul = document.getElementById('input-judul-buku').value.trim();
   const pengarang = document.getElementById('input-pengarang-buku').value.trim();
@@ -1029,22 +1291,31 @@ document.getElementById('btn-tambah-buku').addEventListener('click', () => {
     showToast('Isi semua field dengan benar!', 'error'); return;
   }
 
-  const newId = books.length > 0 ? Math.max(...books.map(b => b.id)) + 1 : 1;
-  books.push({ id: newId, judul, pengarang, kategori, stok, cover: cover || '', penerbit, tahun, isbn });
-  saveData();
-  showToast('Buku baru berhasil ditambahkan!', 'success');
-  document.getElementById('input-judul-buku').value = '';
-  document.getElementById('input-pengarang-buku').value = '';
-  document.getElementById('input-kategori-buku').value = '';
-  document.getElementById('input-stok-buku').value = '';
-  document.getElementById('input-cover-buku').value = '';
-  document.getElementById('input-penerbit-buku').value = '';
-  document.getElementById('input-tahun-buku').value = '';
-  document.getElementById('input-isbn-buku').value = '';
-  if (window.resetCoverTambah) window.resetCoverTambah();
-  renderKatalog(document.getElementById('search-input').value);
-  renderDashboard();
-  updateHeroStats();
+  try {
+    const res = await fetch(`${API_URL}/buku.php`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ judul, pengarang, kategori, stok, cover: cover || '', penerbit, tahun, isbn })
+    }).then(r => r.json());
+
+    if (!res.success) { showToast(res.message || 'Gagal menambah buku', 'error'); return; }
+
+    showToast('Buku baru berhasil ditambahkan!', 'success');
+    document.getElementById('input-judul-buku').value = '';
+    document.getElementById('input-pengarang-buku').value = '';
+    document.getElementById('input-kategori-buku').value = '';
+    document.getElementById('input-stok-buku').value = '';
+    document.getElementById('input-cover-buku').value = '';
+    document.getElementById('input-penerbit-buku').value = '';
+    document.getElementById('input-tahun-buku').value = '';
+    document.getElementById('input-isbn-buku').value = '';
+    if (window.resetCoverTambah) window.resetCoverTambah();
+
+    await loadAllData(); // ambil data terbaru (termasuk buku baru) langsung dari database
+  } catch (e) {
+    showToast('Gagal terhubung ke server.', 'error');
+    console.error(e);
+  }
 });
 
 // ===== LOGIN / AUTH =====
@@ -1075,58 +1346,93 @@ window.selectRegRole = function(role, el) {
   document.getElementById('reg-nis').placeholder = role === 'guru' ? 'Masukkan NUPTK' : 'Masukkan NIS';
 };
 
-document.getElementById('btn-submit-login').addEventListener('click', () => {
+document.getElementById('btn-submit-login').addEventListener('click', async () => {
   const nis = document.getElementById('input-nis').value.trim();
   const password = document.getElementById('input-password').value.trim();
 
-  let user = null;
-  if (loginRole === 'admin') {
-    if (!nis || !password) { showToast('Isi semua kolom!', 'error'); return; }
-    user = users.find(u => u.nis === nis && u.password === password && u.role === 'admin');
-    if (!user) { showToast('Username atau password admin salah!', 'error'); return; }
-  } else {
-    // Mode gabungan: cari akun di data Siswa maupun Guru sekaligus
-    if (!nis) { showToast('Masukkan NIS/NUPTK!', 'error'); return; }
-    user = users.find(u => u.nis === nis && (u.role === 'siswa' || u.role === 'guru'));
-    if (!user) { showToast('NIS/NUPTK tidak ditemukan!', 'error'); return; }
+  if (loginRole === 'admin' && (!nis || !password)) { showToast('Isi semua kolom!', 'error'); return; }
+  if (loginRole !== 'admin' && !nis) { showToast('Masukkan NIS/NUPTK!', 'error'); return; }
+
+  try {
+    const res = await fetch(`${API_URL}/pengguna.php?action=login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nis, password: password || '' })
+    }).then(r => r.json());
+
+    if (!res.success) {
+      showToast(loginRole === 'admin' ? 'Username atau password admin salah!' : 'NIS/NUPTK tidak ditemukan!', 'error');
+      return;
+    }
+
+    const user = res.data;
+    if (loginRole === 'admin' && user.role !== 'admin') { showToast('Akun ini bukan admin!', 'error'); return; }
+    if (loginRole !== 'admin' && user.role === 'admin') { showToast('Gunakan mode login Admin.', 'error'); return; }
+
+    currentUser = user; isLoggedIn = true; isAdmin = user.role === 'admin';
+    sessionStorage.setItem('activeUser', JSON.stringify(currentUser));
+    closeModal('login-modal');
+
+    const roleKeterangan = user.role === 'admin' ? 'Admin' : user.role === 'guru' ? 'Guru' : 'Siswa';
+    showToast(`Selamat datang, ${user.nama}! Anda login sebagai ${roleKeterangan} 👋`, 'success');
+    await loadAllData();
+    checkLoginState();
+    document.getElementById('input-nis').value = '';
+    document.getElementById('input-password').value = '';
+  } catch (e) {
+    showToast('Gagal terhubung ke server.', 'error');
+    console.error(e);
   }
-
-  currentUser = user; isLoggedIn = true; isAdmin = user.role === 'admin';
-  sessionStorage.setItem('activeUser', JSON.stringify(currentUser));
-  closeModal('login-modal');
-
-  // Keterangan peran otomatis setelah login berhasil (Siswa/Guru/Admin)
-  const roleKeterangan = user.role === 'admin' ? 'Admin' : user.role === 'guru' ? 'Guru' : 'Siswa';
-  showToast(`Selamat datang, ${user.nama}! Anda login sebagai ${roleKeterangan} 👋`, 'success');
-  checkLoginState();
-  document.getElementById('input-nis').value = '';
-  document.getElementById('input-password').value = '';
 });
 
-document.getElementById('btn-submit-register').addEventListener('click', () => {
+document.getElementById('btn-submit-register').addEventListener('click', async () => {
   const nis = document.getElementById('reg-nis').value.trim();
   const nama = document.getElementById('reg-nama').value.trim();
 
   if (!nis || !nama) { showToast('Isi semua kolom!', 'error'); return; }
-  if (users.find(u => u.nis === nis)) { showToast('NIS/NUPTK sudah terdaftar!', 'error'); return; }
 
-  users.push({ nis, nama, borrowed: [], role: registerRole });
-  saveData();
-  showToast('Registrasi berhasil! Silakan login.', 'success');
-  closeModal('register-modal'); showLogin();
+  try {
+    const res = await fetch(`${API_URL}/pengguna.php`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nis, nama, password: '', role: registerRole })
+    }).then(r => r.json());
+
+    if (!res.success) { showToast(res.message || 'NIS/NUPTK sudah terdaftar!', 'error'); return; }
+
+    showToast('Registrasi berhasil! Silakan login.', 'success');
+    closeModal('register-modal'); showLogin();
+    await loadAllData();
+  } catch (e) {
+    showToast('Gagal terhubung ke server.', 'error');
+    console.error(e);
+  }
 });
 
-document.getElementById('btn-submit-forgot')?.addEventListener('click', () => {
+document.getElementById('btn-submit-forgot')?.addEventListener('click', async () => {
   const nis = document.getElementById('forgot-nis').value.trim();
   const nama = document.getElementById('forgot-nama').value.trim();
   const newPw = document.getElementById('forgot-password').value.trim();
   if (!nis || !nama || !newPw) { showToast('Isi semua kolom!', 'error'); return; }
-  const idx = users.findIndex(u => u.nis === nis && u.nama.toLowerCase() === nama.toLowerCase());
-  if (idx === -1) { showToast('Data tidak cocok!', 'error'); return; }
+  const target = users.find(u => u.nis === nis && u.nama.toLowerCase() === nama.toLowerCase());
+  if (!target) { showToast('Data tidak cocok!', 'error'); return; }
   if (newPw.length < 6) { showToast('Password minimal 6 karakter!', 'error'); return; }
-  users[idx].password = newPw; saveData();
-  showToast('Password berhasil diperbarui!', 'success');
-  closeModal('forgot-modal'); showLogin();
+
+  try {
+    const res = await fetch(`${API_URL}/pengguna.php`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nis, password: newPw })
+    }).then(r => r.json());
+
+    if (!res.success) { showToast(res.message || 'Gagal memperbarui password', 'error'); return; }
+
+    showToast('Password berhasil diperbarui!', 'success');
+    closeModal('forgot-modal'); showLogin();
+  } catch (e) {
+    showToast('Gagal terhubung ke server.', 'error');
+    console.error(e);
+  }
 });
 
 // ===== SEARCH & FILTER =====
@@ -1376,7 +1682,6 @@ document.getElementById('close-qr-display').addEventListener('click', () => clos
 document.getElementById('close-qr-scan').addEventListener('click', () => {
   stopScanner();
   closeModal('qr-scan-modal');
-  document.getElementById('manual-code-input').value = '';
 });
 
 document.getElementById('hero-login-btn').addEventListener('click', showLogin);
@@ -1418,6 +1723,111 @@ document.getElementById('nav-laporan')?.addEventListener('click', (e) => {
 document.getElementById('hamburger')?.addEventListener('click', () => {
   document.getElementById('main-nav').classList.toggle('open');
 });
+
+// ===== NAV INDICATOR (highlight ikut geser saat menu diklik, dan tetap pindah ke section-nya) =====
+(function() {
+  const mainNav = document.getElementById('main-nav');
+  const navIndicator = document.getElementById('nav-indicator');
+  if (!mainNav || !navIndicator) return;
+
+  function moveNavIndicatorTo(link) {
+    if (!link || link.classList.contains('hidden')) return;
+    const navRect = mainNav.getBoundingClientRect();
+    const linkRect = link.getBoundingClientRect();
+    navIndicator.style.width = linkRect.width + 'px';
+    navIndicator.style.height = linkRect.height + 'px';
+    navIndicator.style.transform = `translate(${linkRect.left - navRect.left}px, ${linkRect.top - navRect.top}px)`;
+    navIndicator.style.opacity = '1';
+  }
+
+  function setActiveNav(link) {
+    mainNav.querySelectorAll('.nav-link').forEach(a => a.classList.remove('active'));
+    link.classList.add('active');
+    moveNavIndicatorTo(link);
+  }
+
+  // Catatan: TIDAK memanggil preventDefault, supaya link <a href="#..."> tetap
+  // melakukan navigasi/scroll bawaan browser ke section tujuannya seperti biasa.
+  mainNav.querySelectorAll('.nav-link').forEach(link => {
+    link.addEventListener('click', () => setActiveNav(link));
+  });
+
+  // Reposisi saat ukuran layar berubah (desktop <-> mobile, dsb)
+  window.addEventListener('resize', () => {
+    const active = mainNav.querySelector('.nav-link.active');
+    if (active) moveNavIndicatorTo(active);
+  });
+
+  // Reposisi otomatis kalau ada menu yang muncul/hilang (mis. Dashboard & Laporan setelah login)
+  const navObserver = new MutationObserver(() => {
+    const active = mainNav.querySelector('.nav-link.active');
+    if (active) moveNavIndicatorTo(active);
+  });
+  navObserver.observe(mainNav, { attributes: true, attributeFilter: ['class'], subtree: true });
+
+  function initNavIndicator() {
+    const active = mainNav.querySelector('.nav-link.active') || mainNav.querySelector('.nav-link');
+    if (!active) return;
+    navIndicator.style.transition = 'none';
+    moveNavIndicatorTo(active);
+    void navIndicator.offsetWidth; // paksa reflow sebelum transisi diaktifkan lagi
+    navIndicator.style.transition = '';
+  }
+
+  window.addEventListener('load', initNavIndicator);
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(initNavIndicator);
+  }
+
+  // ===== SCROLLSPY: indikator otomatis ikut pindah saat halaman di-scroll manual =====
+  // Dihitung ULANG setiap saat (bukan urutan tetap), karena heading yang benar-benar
+  // tampil beda-beda tergantung kondisi:
+  //   - Tampilan awal (belum login): Beranda, Katalog, Kontak
+  //   - Siswa/Guru login: Dashboard, Katalog, Kontak (Beranda diganti welcome banner, tanpa Laporan)
+  //   - Admin login: Dashboard, Laporan, Katalog, Kontak
+  const navSectionPairs = [
+    { link: mainNav.querySelector('a[href="#beranda"]'), id: 'beranda' },
+    { link: document.getElementById('nav-dashboard'), id: 'dashboard' },
+    { link: document.getElementById('nav-laporan'), id: 'laporan' },
+    { link: mainNav.querySelector('a[href="#katalog"]'), id: 'katalog' },
+    { link: mainNav.querySelector('a[href="#kontak"]'), id: 'kontak' }
+  ];
+
+  function getActiveScrollTargets() {
+    return navSectionPairs
+      .filter(p => p.link && !p.link.classList.contains('hidden'))
+      .map(p => ({ link: p.link, el: document.getElementById(p.id) }))
+      .filter(p => p.el && !p.el.classList.contains('hidden'))
+      // urutkan berdasarkan posisi ASLI section saat ini di halaman, bukan urutan tetap,
+      // supaya selalu cocok walau urutan/heading yang tampil berbeda per role
+      .sort((a, b) => a.el.offsetTop - b.el.offsetTop);
+  }
+
+  let scrollSpyTicking = false;
+  function updateScrollSpy() {
+    scrollSpyTicking = false;
+    const targets = getActiveScrollTargets();
+    if (targets.length === 0) return;
+    const headerH = document.getElementById('main-header')?.offsetHeight || 80;
+    const scrollPos = window.scrollY + headerH + 40;
+    let current = targets[0].link;
+    targets.forEach(t => { if (t.el.offsetTop <= scrollPos) current = t.link; });
+    // Kalau sudah nyaris di dasar halaman, pastikan heading terakhir (Kontak) yang aktif
+    if (window.innerHeight + window.scrollY >= document.body.scrollHeight - 4) {
+      current = targets[targets.length - 1].link;
+    }
+    if (current && !current.classList.contains('active')) setActiveNav(current);
+  }
+  window.addEventListener('scroll', () => {
+    if (!scrollSpyTicking) { window.requestAnimationFrame(updateScrollSpy); scrollSpyTicking = true; }
+  });
+
+  // Dipanggil dari luar (mis. setelah login/logout) supaya indikator langsung
+  // menyesuaikan begitu heading yang tampil berubah, tanpa harus scroll dulu.
+  window.__refreshNavScrollSpy = function() {
+    requestAnimationFrame(updateScrollSpy);
+  };
+})();
 
 // NAVBAR SCROLL
 window.addEventListener('scroll', () => {
@@ -1550,6 +1960,9 @@ function checkLoginState() {
   }
   renderKatalog(document.getElementById('search-input').value);
   updateHeroStats();
+  // Heading yang tampil di nav berubah (Beranda/Dashboard/Laporan bisa muncul-hilang),
+  // jadi indikator perlu langsung disesuaikan tanpa nunggu discroll dulu.
+  if (window.__refreshNavScrollSpy) window.__refreshNavScrollSpy();
 }
 
 // ===== THEME TOGGLE (Light / Dark Mode) =====
@@ -1589,3 +2002,4 @@ initTheme();
 
 // ===== INIT =====
 checkLoginState();
+loadAllData(); // muat buku, anggota, dan riwayat dari database MySQL saat halaman dibuka
