@@ -40,10 +40,11 @@
       </label>
     </div>
     <nav id="main-nav">
+      <span class="nav-indicator" id="nav-indicator"></span>
       <a href="#beranda" class="nav-link active">Beranda</a>
-      <a href="#katalog" class="nav-link">Katalog</a>
       <a href="#" class="nav-link hidden" id="nav-dashboard">Dashboard</a>
       <a href="#" class="nav-link hidden" id="nav-laporan">Laporan</a>
+      <a href="#katalog" class="nav-link">Katalog</a>
       <a href="#kontak" class="nav-link">Kontak</a>
     </nav>
     <div class="nav-right">
@@ -134,7 +135,6 @@
           <li><i class="fa-solid fa-check"></i> Durasi pinjam <strong>7 hari</strong> per buku</li>
           <li><i class="fa-solid fa-check"></i> Denda <strong>Rp 50.000/hari</strong> untuk keterlambatan</li>
           <li><i class="fa-solid fa-check"></i> Buku rusak/hilang wajib diganti</li>
-          <li><i class="fa-solid fa-check"></i> Kartu anggota wajib dibawa saat meminjam</li>
         </ul>
       </div>
     </div>
@@ -160,8 +160,8 @@
       </div>
       <p class="wb-quote" id="wb-quote">"Membaca adalah jendela dunia — setiap buku membawa petualangan baru."</p>
       <div class="wb-actions" id="wb-quick-actions">
-        <a href="#katalog" class="wb-btn wb-btn-primary"><i class="fa-solid fa-magnifying-glass"></i> Jelajahi Katalog</a>
         <a href="#dashboard" class="wb-btn wb-btn-ghost" id="wb-dashboard-btn"><i class="fa-solid fa-chart-simple"></i> Lihat Dashboard</a>
+        <a href="#katalog" class="wb-btn wb-btn-primary"><i class="fa-solid fa-magnifying-glass"></i> Jelajahi Katalog</a>
       </div>
     </div>
     <div class="wb-right">
@@ -312,6 +312,41 @@
       <div class="panel-header">
         <h3>👥 Daftar Anggota Perpustakaan</h3>
         <p>Pantau semua anggota yang terdaftar di sistem.</p>
+      </div>
+
+      <!-- FORM TAMBAH ANGGOTA (ADMIN) -->
+      <div class="form-card" style="margin-bottom:24px;">
+        <h3><i class="fa-solid fa-user-plus"></i> Tambah Anggota Baru</h3>
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label>Role *</label>
+            <select id="input-role-anggota" class="form-input">
+              <option value="siswa">Siswa</option>
+              <option value="guru">Guru</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label id="label-nis-anggota">NIS *</label>
+            <input type="text" id="input-nis-anggota" placeholder="Masukkan NIS" class="form-input">
+          </div>
+          <div class="form-group">
+            <label>Nama Lengkap *</label>
+            <input type="text" id="input-nama-anggota" placeholder="Masukkan nama lengkap" class="form-input">
+          </div>
+          <div class="form-group">
+            <label id="label-password-anggota">Password (opsional untuk Siswa/Guru)</label>
+            <input type="text" id="input-password-anggota" placeholder="Kosongkan jika tidak perlu" class="form-input">
+          </div>
+        </div>
+        <button class="btn-primary" id="btn-tambah-anggota" style="margin-top:12px;">
+          <i class="fa-solid fa-user-plus"></i> Tambah Anggota
+        </button>
+      </div>
+
+      <div class="search-wrap-laporan" style="margin-bottom:18px;">
+        <i class="fa-solid fa-magnifying-glass" style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--gray-400);font-size:14px;"></i>
+        <input type="text" id="user-search" class="form-input laporan-search-input" placeholder="Cari nama atau NIS/NUPTK anggota...">
       </div>
       <div id="user-list-container"></div>
     </div>
@@ -622,25 +657,13 @@
     <button class="modal-close" id="close-qr-display"><i class="fa-solid fa-xmark"></i></button>
     <div class="modal-icon-header qr-icon"><i class="fa-solid fa-qrcode"></i></div>
     <h2 class="modal-title" id="qr-title">QR Transaksi</h2>
-    <p class="modal-subtitle">Tunjukkan QR ini ke Admin, atau berikan kode manual di bawah</p>
+    <p class="modal-subtitle">Tunjukkan QR ini ke Admin untuk diproses</p>
+    <p class="modal-subtitle" id="qr-peminjam-info" style="font-weight:700; margin-top:2px;">Peminjam</p>
 
-    <!-- Info buku ringkas -->
-    <div class="qr-book-chip" id="qr-book-chip">
-      <img id="qr-book-cover" src="" alt="" class="qr-book-cover">
-      <div class="qr-book-info">
-        <div class="qr-book-title" id="qr-book-title">Judul Buku</div>
-        <div class="qr-book-sub" id="qr-book-sub">Peminjam</div>
-      </div>
-    </div>
+    <!-- Daftar buku (mendukung 1 atau lebih buku dalam satu QR) -->
+    <div id="qr-book-list" class="qr-book-list"></div>
 
     <div id="qr-code-container" class="qr-code-frame"></div>
-
-    <!-- Kode manual sebagai alternatif scan -->
-    <div class="qr-manual-box">
-      <div class="qr-manual-label"><i class="fa-solid fa-keyboard"></i> Atau gunakan Kode Manual</div>
-      <div class="qr-manual-code" id="qr-manual-code">------</div>
-      <button class="qr-copy-btn" id="qr-copy-code-btn" type="button"><i class="fa-regular fa-copy"></i> Salin Kode</button>
-    </div>
 
     <p id="qr-instructions" class="qr-instructions"></p>
     <div class="qr-status-pulse" id="qr-status-pulse">
@@ -654,26 +677,11 @@
   <div class="modal-box qr-modal-box">
     <button class="modal-close" id="close-qr-scan"><i class="fa-solid fa-xmark"></i></button>
     <div class="modal-icon-header scan-icon"><i class="fa-solid fa-camera"></i></div>
-    <h2 class="modal-title">Scan QR Code</h2>
-    <p class="modal-subtitle">Arahkan kamera ke QR Code milik siswa/guru</p>
+    <h2 class="modal-title">Scan QR Peminjaman</h2>
+    <p class="modal-subtitle">Arahkan kamera ke QR Code peminjaman milik siswa/guru</p>
 
-    <div class="scan-mode-switch">
-      <button class="scan-mode-btn active" id="scan-mode-camera" onclick="switchScanMode('camera')"><i class="fa-solid fa-camera"></i> Kamera</button>
-      <button class="scan-mode-btn" id="scan-mode-manual" onclick="switchScanMode('manual')"><i class="fa-solid fa-keyboard"></i> Kode Manual</button>
-    </div>
-
-    <div id="scan-panel-camera" class="scan-panel">
-      <div id="qr-reader" class="qr-reader-frame"></div>
-      <p class="scan-hint"><i class="fa-solid fa-circle-info"></i> Pastikan QR berada di tengah bingkai kamera</p>
-    </div>
-
-    <div id="scan-panel-manual" class="scan-panel hidden">
-      <div class="manual-input-group">
-        <input type="text" id="manual-code-input" class="manual-code-input" placeholder="••••••" maxlength="6" autocomplete="off">
-        <button class="btn-primary" id="btn-submit-manual-code" style="width:100%; margin-top:14px;"><i class="fa-solid fa-check"></i> Proses Kode</button>
-      </div>
-      <p class="scan-hint"><i class="fa-solid fa-circle-info"></i> Minta siswa/guru menyebutkan 6 digit kode manual mereka</p>
-    </div>
+    <div id="qr-reader" class="qr-reader-frame"></div>
+    <p class="scan-hint"><i class="fa-solid fa-circle-info"></i> Pastikan QR berada di tengah bingkai kamera</p>
   </div>
 </div>
 
@@ -699,9 +707,37 @@
   </div>
 </div>
 
+<!-- KERANJANG PINJAM (pilih beberapa buku -> 1 QR Code) -->
+<div id="borrow-cart-bar" class="borrow-cart-bar hidden">
+  <div class="cart-bar-inner">
+    <div class="cart-bar-info">
+      <i class="fa-solid fa-cart-shopping"></i>
+      <span id="cart-count-text">0 buku dipilih</span>
+    </div>
+    <div class="cart-bar-actions">
+      <button class="btn-ghost" onclick="batalkanBorrowCart()">Batal</button>
+      <button class="btn-primary" onclick="buatQRDariCart()"><i class="fa-solid fa-qrcode"></i> Buat QR Pinjam</button>
+    </div>
+  </div>
+</div>
+
+<!-- KERANJANG KEMBALI (pilih beberapa buku -> 1 QR Code pengembalian) -->
+<div id="return-cart-bar" class="borrow-cart-bar return-cart-bar hidden">
+  <div class="cart-bar-inner">
+    <div class="cart-bar-info">
+      <i class="fa-solid fa-rotate-left"></i>
+      <span id="return-cart-count-text">0 buku dipilih</span>
+    </div>
+    <div class="cart-bar-actions">
+      <button class="btn-ghost" onclick="batalkanReturnCart()">Batal</button>
+      <button class="btn-success" onclick="buatQRDariReturnCart()"><i class="fa-solid fa-qrcode"></i> Buat QR Kembalikan</button>
+    </div>
+  </div>
+</div>
+
 <!-- TOAST -->
 <div id="toast-container"></div>
  
-<script src="index.js"></script>
+<script src="index.js?v=2"></script>
 </body>
 </html>
