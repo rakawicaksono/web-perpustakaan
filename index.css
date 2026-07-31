@@ -713,7 +713,7 @@ input[type="date"].form-input { color: var(--navy); }
 .site-footer { background: var(--navy); color: var(--gray-400); padding: 60px 24px 24px; }
 .footer-inner { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 48px; }
 .footer-logo {display: flex; align-items: center; gap: 12px; margin-bottom: 1.5rem; }
-.footer-logo .logo-text {font-size: 2rem; font-weight: 800; letter-spacing: -0.5px; color: var(--white); font-family: var(--font-display);}
+.footer-logo .logo-text {font-size: 2rem; font-weight: 800; letter-spacing: -0.5px; color: #ffffff; font-family: var(--font-display);}
 .footer-logo .logo-img-custom {width: 40px; height: 40px; object-fit: cover; border-radius: 10px; box-shadow: var(--shadow-sm); }
 #footer-logo-icon-default {width: 40px; height: 40px; background: var(--primary-light); color: var(--primary); display: flex; align-items: center; justify-content: center; border-radius: 10px; font-size: 1.2rem;}
 .hidden { display: none !important; }
@@ -1371,11 +1371,15 @@ input[type="date"].form-input { color: var(--navy); }
 /* ===== QR SYSTEM REDESIGN ===== */
 .qr-modal-box { max-width: 420px; }
 
-/* Book chip inside QR display/confirm modal */
+/* Daftar buku (1 atau lebih) di dalam QR display/confirm modal */
+.qr-book-list {
+  display: flex; flex-direction: column; gap: 8px;
+  margin: 18px 0 4px; max-height: 190px; overflow-y: auto;
+}
 .qr-book-chip {
   display: flex; align-items: center; gap: 12px; text-align: left;
   background: var(--gray-100); border: 1px solid var(--gray-200);
-  border-radius: var(--radius-sm); padding: 10px 14px; margin: 18px 0 4px;
+  border-radius: var(--radius-sm); padding: 10px 14px;
 }
 .qr-book-cover {
   width: 42px; height: 56px; object-fit: cover; border-radius: 6px;
@@ -1396,29 +1400,6 @@ input[type="date"].form-input { color: var(--navy); }
   border: 1px solid var(--gray-200); box-shadow: var(--shadow-sm);
 }
 
-/* Manual code box */
-.qr-manual-box {
-  background: var(--primary-light); border: 1.5px dashed var(--primary);
-  border-radius: var(--radius-sm); padding: 14px 16px; margin: 14px 0;
-}
-.qr-manual-label {
-  font-size: 11.5px; font-weight: 700; color: var(--primary);
-  text-transform: uppercase; letter-spacing: 0.6px;
-  display: flex; align-items: center; justify-content: center; gap: 6px; margin-bottom: 8px;
-}
-.qr-manual-code {
-  font-family: var(--font-display); font-size: 28px; font-weight: 800;
-  letter-spacing: 8px; color: var(--navy); margin-bottom: 10px;
-}
-.qr-copy-btn {
-  background: var(--primary); color: white; border: none;
-  padding: 7px 16px; border-radius: 8px; font-size: 12.5px; font-weight: 600;
-  cursor: pointer; transition: var(--transition); font-family: var(--font-body);
-  display: inline-flex; align-items: center; gap: 6px;
-}
-.qr-copy-btn:hover { background: var(--primary-dark); transform: translateY(-1px); }
-.qr-copy-btn.copied { background: var(--green); }
-
 .qr-instructions { font-weight: 600; color: var(--primary); font-size: 13.5px; margin-top: 4px; }
 
 /* Pulse status while waiting */
@@ -1436,24 +1417,9 @@ input[type="date"].form-input { color: var(--navy); }
   50% { opacity: 0.6; transform: scale(1.3); box-shadow: 0 0 0 5px rgba(192,138,46,0); }
 }
 
-/* ===== SCAN MODE SWITCH ===== */
-.scan-mode-switch {
-  display: flex; gap: 6px; background: var(--gray-100);
-  border-radius: 10px; padding: 4px; margin-bottom: 4px;
-}
-.scan-mode-btn {
-  flex: 1; display: flex; align-items: center; justify-content: center; gap: 7px;
-  padding: 9px 10px; border: none; background: none; border-radius: 8px;
-  font-size: 13px; font-weight: 600; color: var(--gray-500);
-  cursor: pointer; transition: var(--transition); font-family: var(--font-body);
-}
-.scan-mode-btn.active { background: var(--white); color: var(--primary); box-shadow: var(--shadow-sm); }
-
-.scan-panel { margin-top: 16px; }
-.scan-panel.hidden { display: none; }
-
+/* ===== SCAN PANEL (kamera) ===== */
 .qr-reader-frame {
-  width: 100%; border-radius: 14px; overflow: hidden;
+  width: 100%; margin-top: 16px; border-radius: 14px; overflow: hidden;
   border: 1px solid var(--gray-200); background: var(--gray-100);
 }
 .scan-hint {
@@ -1461,17 +1427,6 @@ input[type="date"].form-input { color: var(--navy); }
   display: flex; align-items: flex-start; gap: 6px; line-height: 1.5;
 }
 .scan-hint i { margin-top: 2px; flex-shrink: 0; color: var(--primary); }
-
-/* Manual code input (admin scan side) */
-.manual-input-group { padding: 8px 0 4px; }
-.manual-code-input {
-  width: 100%; text-align: center; letter-spacing: 12px;
-  font-family: var(--font-display); font-size: 30px; font-weight: 800;
-  padding: 16px 10px 16px 22px; border: 2px solid var(--gray-200);
-  border-radius: 12px; color: var(--navy); background: var(--gray-50);
-  outline: none; transition: var(--transition); text-transform: uppercase;
-}
-.manual-code-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(30,77,140,0.12); }
 
 /* ===== CONFIRM MODAL (replaces native confirm()) ===== */
 .confirm-modal-box { max-width: 400px; }
@@ -1487,21 +1442,101 @@ input[type="date"].form-input { color: var(--navy); }
 [data-theme="dark"] .qr-book-sub { color: #99a2b8; }
 [data-theme="dark"] .qr-book-cover { background: #2a3245; }
 [data-theme="dark"] .qr-code-frame { background: #f3efe6; border-color: #2a3245; }
-[data-theme="dark"] .qr-manual-box { background: #1c2f4d; border-color: var(--primary); }
-[data-theme="dark"] .qr-manual-code { color: #f3f6fb; }
 [data-theme="dark"] .qr-status-pulse { background: #11151f; color: #99a2b8; }
-[data-theme="dark"] .scan-mode-switch { background: #11151f; }
-[data-theme="dark"] .scan-mode-btn { color: #99a2b8; }
-[data-theme="dark"] .scan-mode-btn.active { background: #1a2030; color: var(--primary); }
 [data-theme="dark"] .qr-reader-frame { background: #11151f; border-color: #2a3245; }
 [data-theme="dark"] .scan-hint { color: #99a2b8; }
-[data-theme="dark"] .manual-code-input { background: #11151f; border-color: #2a3245; color: #f3f6fb; }
-[data-theme="dark"] .manual-code-input:focus { border-color: var(--primary); }
 
-/* Responsive */
+/* ===== KERANJANG PINJAM (borrow cart -> 1 QR) ===== */
+.book-btn-in-cart { background: var(--green); color: white; }
+.book-btn-in-cart:hover { background: #0b6b49; }
+[data-theme="dark"] .book-btn-in-cart:hover { background: #2bb589; }
+
+.borrow-cart-bar {
+  position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%);
+  z-index: 999; background: var(--navy); color: white;
+  border-radius: 16px; box-shadow: var(--shadow-xl);
+  padding: 14px 18px; max-width: 92vw; width: 560px;
+  animation: cartBarIn 0.25s ease;
+}
+.borrow-cart-bar.hidden { display: none; }
+
+/* Return cart bar styled differently — green accent */
+.return-cart-bar { background: #0c4a30; }
+.return-cart-bar .cart-bar-info i { color: #3dd9a3; }
+[data-theme="dark"] .return-cart-bar { background: #0a2e1d; }
+
+@keyframes cartBarIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(20px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+.cart-bar-inner { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+.cart-bar-info { display: flex; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 600; min-width: 0; }
+.cart-bar-info i { color: var(--accent); font-size: 16px; flex-shrink: 0; }
+.cart-bar-info span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 320px; }
+.cart-bar-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.cart-bar-actions .btn-ghost { color: white; border-color: rgba(255,255,255,0.3); padding: 8px 14px; font-size: 13px; }
+.cart-bar-actions .btn-primary { padding: 8px 16px; font-size: 13px; }
+.cart-bar-actions .btn-success { padding: 8px 16px; font-size: 13px; background: var(--green); color: white; border: none; border-radius: 9px; font-weight: 700; cursor: pointer; font-family: var(--font-body); transition: var(--transition); display: flex; align-items: center; gap: 6px; }
+.cart-bar-actions .btn-success:hover { background: #0b6b49; }
+[data-theme="dark"] .borrow-cart-bar { background: #1a2030; }
+
+/* Return cart bar stacked above borrow bar when both visible */
+#borrow-cart-bar:not(.hidden) ~ #return-cart-bar:not(.hidden),
+#return-cart-bar:not(.hidden) { bottom: 22px; }
+#borrow-cart-bar:not(.hidden) { bottom: 22px; }
+/* When both visible, push return bar up */
+.return-cart-bar:not(.hidden) { bottom: 22px; }
+/* JS handles stacking via class — see updateReturnCartBar */
+.return-selectable {
+  position: relative;
+  cursor: default;
+  transition: var(--transition), border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.return-selected {
+  border-color: var(--green) !important;
+  box-shadow: 0 0 0 2px rgba(15,138,95,0.18), var(--shadow-sm) !important;
+  background: rgba(15,138,95,0.04) !important;
+}
+[data-theme="dark"] .return-selected { background: rgba(15,138,95,0.08) !important; }
+
+/* Checkbox circle di sisi kiri */
+.return-check-wrap {
+  display: flex; align-items: center; padding-right: 4px; cursor: pointer; flex-shrink: 0;
+}
+.return-check-box {
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 2px solid var(--gray-300);
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s ease;
+  color: transparent; font-size: 11px;
+  background: transparent;
+}
+.return-check-box.checked {
+  border-color: var(--green);
+  background: var(--green);
+  color: white;
+}
+
+/* Tombol toggle pilih/batal di dalam card */
+.btn-return-toggle {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 14px; border-radius: 9px; font-size: 12px; font-weight: 700;
+  cursor: pointer; transition: var(--transition); font-family: var(--font-body);
+  border: 1.5px solid var(--gray-300); background: var(--white); color: var(--gray-600);
+}
+.btn-return-toggle:hover {
+  border-color: var(--green); color: var(--green);
+}
+.btn-return-toggle.selected {
+  background: rgba(15,138,95,0.1); border-color: var(--green); color: var(--green);
+}
+[data-theme="dark"] .btn-return-toggle { background: #1a2030; color: var(--gray-400); border-color: #2a3245; }
+[data-theme="dark"] .btn-return-toggle:hover { color: #3dd9a3; border-color: #3dd9a3; }
+[data-theme="dark"] .btn-return-toggle.selected { background: rgba(61,217,163,0.1); border-color: #3dd9a3; color: #3dd9a3; }
+
 @media (max-width: 480px) {
-  .qr-manual-code { font-size: 22px; letter-spacing: 5px; }
-  .manual-code-input { font-size: 24px; letter-spacing: 8px; }
+  .cart-bar-info span { max-width: 150px; }
+  .borrow-cart-bar { padding: 12px 14px; bottom: 14px; }
 }
 /* ===== ROLE BADGE CLASSES (dipakai di JS dynamic HTML) ===== */
 .role-chip {
@@ -1518,3 +1553,25 @@ input[type="date"].form-input { color: var(--navy); }
 /* ===== LOGOUT BUTTON ===== */
 .btn-logout-state { background: var(--navy-soft) !important; }
 [data-theme="dark"] .btn-logout-state { background: #2a3245 !important; }
+/* ================================================================
+   NAV INDICATOR — highlight yang ikut "berpindah" saat menu diklik
+   ================================================================ */
+#main-nav { position: relative; }
+
+.nav-indicator {
+  position: absolute; top: 0; left: 0; width: 0; height: 0;
+  background: var(--primary-light); border-radius: 8px;
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+              width 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+              height 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.25s ease;
+  opacity: 0; z-index: 0; pointer-events: none;
+}
+[data-theme="dark"] .nav-indicator { background: var(--primary-light); }
+
+/* Teks link harus tampil di atas indikator */
+.nav-link { position: relative; z-index: 1; }
+
+/* Warna box statis digantikan oleh indikator yang bergerak */
+.nav-link.active { background: transparent; }
+[data-theme="dark"] .nav-link.active { background: transparent; }
